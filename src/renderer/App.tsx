@@ -58,29 +58,6 @@ Current branch: ${data.current || 'unknown'}`;
           <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
             {repository ? repository.name : 'Git Tower Clone'}
           </h1>
-          <div className="flex space-x-2">
-            {repository && (
-              <button 
-                onClick={handleGetGitStatus}
-                disabled={gitStatusMutation.isPending}
-                className="px-3 py-1 text-sm bg-green-500 dark:bg-green-600 text-white rounded hover:bg-green-600 dark:hover:bg-green-700 disabled:opacity-50"
-              >
-                {gitStatusMutation.isPending ? 'Getting Status...' : 'Git Status'}
-              </button>
-            )}
-            <button 
-              onClick={handleOpenRepository}
-              disabled={openRepositoryMutation.isPending}
-              className="px-3 py-1 text-sm bg-blue-500 dark:bg-blue-600 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 inline-block"
-            >
-              {openRepositoryMutation.isPending 
-                ? 'Opening...' 
-                : repository 
-                  ? 'Change Repository' 
-                  : 'Open Repository'
-              }
-            </button>
-          </div>
         </div>
       </div>
 
