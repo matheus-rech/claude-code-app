@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { trpc } from './trpc';
+import DiffViewer from './components/DiffViewer';
 
 type GitView = 'changes' | 'history';
 
@@ -140,9 +141,23 @@ Current branch: ${data.current || 'unknown'}`;
 }
 
 function ChangesView({ repository }: { repository: Repository }) {
+  const [selectedFile, setSelectedFile] = useState<{ file: string; staged: boolean } | null>(null);
+  
   const { data: status, isLoading, error } = trpc.git.getStatus.useQuery(repository.path, {
     refetchInterval: 2000, // Refresh every 2 seconds
   });
+
+  const { data: diffData, isLoading: diffLoading, error: diffError } = trpc.git.getFileDiff.useQuery(
+    {
+      repoPath: repository.path,
+      filePath: selectedFile?.file || '',
+      staged: selectedFile?.staged || false
+    },
+    {
+      enabled: !!selectedFile,
+    }
+  );
+
 
   const utils = trpc.useUtils();
   
@@ -193,7 +208,7 @@ function ChangesView({ repository }: { repository: Repository }) {
 
   return (
     <div className="flex-1 flex">
-      <div className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4">
+      <div className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto overflow-x-hidden" style={{ height: 'calc(100vh - 120px)' }}>
         {stagedFiles.length === 0 && unstagedFiles.length === 0 ? (
           <div className="text-sm text-gray-500 dark:text-gray-400">No changes detected</div>
         ) : (
@@ -207,14 +222,23 @@ function ChangesView({ repository }: { repository: Repository }) {
                 <div className="text-xs text-gray-500 dark:text-gray-400 italic">No staged files</div>
               ) : (
                 <div className="space-y-2">
-                  {stagedFiles.map(({ file, status }) => (
-                    <div key={`staged-${file}`} className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                  {stagedFiles.map(({ file }) => (
+                    <div 
+                      key={`staged-${file}`} 
+                      className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
+                        selectedFile?.file === file && selectedFile?.staged ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                      }`}
+                      onClick={() => setSelectedFile({ file, staged: true })}
+                    >
                       <div className="flex items-center space-x-2">
                         <span className="w-2 h-2 rounded-full bg-green-500" />
                         <span className="text-sm font-mono text-gray-900 dark:text-gray-100">{file}</span>
                       </div>
                       <button
-                        onClick={() => handleUnstageFile(file)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnstageFile(file);
+                        }}
                         className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-900 dark:text-gray-100"
                         disabled={stageFileMutation.isPending || unstageFileMutation.isPending}
                       >
@@ -236,7 +260,13 @@ function ChangesView({ repository }: { repository: Repository }) {
               ) : (
                 <div className="space-y-2">
                   {unstagedFiles.map(({ file, status, isPartiallyStaged }) => (
-                    <div key={`unstaged-${file}`} className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <div 
+                      key={`unstaged-${file}`} 
+                      className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
+                        selectedFile?.file === file && !selectedFile?.staged ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                      }`}
+                      onClick={() => setSelectedFile({ file, staged: false })}
+                    >
                       <div className="flex items-center space-x-2">
                         <span className={`w-2 h-2 rounded-full ${
                           status === 'modified' ? 'bg-yellow-500' :
@@ -251,7 +281,10 @@ function ChangesView({ repository }: { repository: Repository }) {
                         )}
                       </div>
                       <button
-                        onClick={() => handleStageFile(file)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStageFile(file);
+                        }}
                         className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-900 dark:text-gray-100"
                         disabled={stageFileMutation.isPending || unstageFileMutation.isPending}
                       >
@@ -265,10 +298,35 @@ function ChangesView({ repository }: { repository: Repository }) {
           </div>
         )}
       </div>
-      <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
-        <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
-          Select a file to view changes
-        </div>
+      <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4 overflow-y-auto overflow-x-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+        {selectedFile ? (
+          <div>
+            {diffLoading ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+                Loading diff...
+              </div>
+            ) : diffError ? (
+              <div className="text-center text-red-500 dark:text-red-400 mt-8">
+                Error loading diff: {diffError.message}
+              </div>
+            ) : diffData ? (
+              <DiffViewer 
+                diffText={diffData} 
+                fileName={selectedFile.file}
+                staged={selectedFile.staged}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow"
+              />
+            ) : (
+              <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+                No diff data available
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+            Select a file to view changes
+          </div>
+        )}
       </div>
     </div>
   );

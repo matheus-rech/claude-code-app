@@ -34,11 +34,7 @@ const appRouter = router({
     getStatus: procedure
       .input(z.string())
       .query(async ({ input: repoPath }) => {
-        console.error('=== TRPC getStatus called ===');
-        console.error('repoPath:', repoPath);
         const result = await gitService.getStatus(repoPath);
-        console.error('=== TRPC getStatus result ===');
-        console.error('result:', JSON.stringify(result, null, 2));
         return result;
       }),
 
@@ -76,6 +72,27 @@ const appRouter = router({
       .input(z.string())
       .query(async ({ input: repoPath }) => {
         return await gitService.getBranches(repoPath);
+      }),
+
+    getFileDiff: procedure
+      .input(z.object({
+        repoPath: z.string(),
+        filePath: z.string(),
+        staged: z.boolean().optional().default(false)
+      }))
+      .query(async ({ input }) => {
+        console.error('=== TRPC getFileDiff called ===');
+        console.error('input:', JSON.stringify(input, null, 2));
+        try {
+          const result = await gitService.getFileDiff(input.repoPath, input.filePath, input.staged);
+          console.error('=== TRPC getFileDiff result ===');
+          console.error('result length:', result.length);
+          return result;
+        } catch (error) {
+          console.error('=== TRPC getFileDiff error ===');
+          console.error('error:', error);
+          throw error;
+        }
       }),
   }),
 

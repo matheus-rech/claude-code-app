@@ -1,7 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('fs');
-const os = require('os');
 const started = require('electron-squirrel-startup');
 const { simpleGit } = require('simple-git');
 const { initTRPC } = require('@trpc/server');
@@ -35,9 +34,6 @@ class GitService {
   }
 
   async getStatus(repoPath) {
-    console.error('=== GitService.getStatus called (main.ts) ===');
-    console.error('repoPath:', repoPath);
-    
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath);
     }
@@ -48,23 +44,7 @@ class GitService {
 
     const status = await this.git.status();
 
-    console.error('=== Simple-git Status Debug (main.ts) ===');
-    console.error('status.modified:', status.modified);
-    console.error('status.staged:', status.staged);
-    console.error('status.not_added:', status.not_added);
-    console.error('status.deleted:', status.deleted);
-    
-    if (status.files && status.files.length > 0) {
-      console.error('Individual file statuses:');
-      status.files.forEach((file, index) => {
-        console.error(`  [${index}] ${file.path}:`);
-        console.error(`    - index: "${file.index}"`);
-        console.error(`    - working_dir: "${file.working_dir}"`);
-      });
-    }
-    console.error('===============================');
-
-    // Process files to separate staged-only vs unstaged changes
+    // Use status.files for more accurate staging information
     const staged = [];
     const modified = [];
     const deleted = [];
@@ -85,18 +65,11 @@ class GitService {
       }
     });
 
-    console.error('=== Processed Results ===');
-    console.error('staged:', staged);
-    console.error('modified:', modified);
-    console.error('deleted:', deleted);
-    console.error('untracked:', status.not_added);
-
     return {
       modified,
       staged,
       untracked: status.not_added,
       deleted,
-      current: status.current,
     };
   }
 
@@ -124,6 +97,18 @@ class GitService {
     await this.git.reset(['HEAD', filePath]);
   }
 
+  async commit(repoPath, message) {
+    if (!this.git || this.currentRepoPath !== repoPath) {
+      await this.openRepository(repoPath);
+    }
+
+    if (!this.git) {
+      throw new Error('Git not initialized');
+    }
+
+    await this.git.commit(message);
+  }
+
   async getBranches(repoPath) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath);
@@ -139,11 +124,54 @@ class GitService {
       current: branches.current,
     };
   }
+
+  async getFileDiff(repoPath, filePath, staged = false) {
+    if (!this.git || this.currentRepoPath !== repoPath) {
+      await this.openRepository(repoPath);
+    }
+
+    if (!this.git) {
+      throw new Error('Git not initialized');
+    }
+
+    try {
+      let diffResult = '';
+      
+      if (staged) {
+        diffResult = await this.git.diff(['--cached', '--', filePath]);
+      } else {
+        try {
+          await this.git.show([`HEAD:${filePath}`]);
+          diffResult = await this.git.diff(['HEAD', '--', filePath]);
+        } catch (error) {
+          const fullPath = path.join(repoPath, filePath);
+          
+          if (fs.existsSync(fullPath)) {
+            const content = fs.readFileSync(fullPath, 'utf8');
+            const lines = content.split('\n');
+            
+            diffResult = `diff --git a/${filePath} b/${filePath}
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/${filePath}
+@@ -0,0 +1,${lines.length} @@
+${lines.map(line => `+${line}`).join('\n')}`;
+          }
+        }
+      }
+      
+      return diffResult;
+    } catch (error) {
+      console.error('Error getting file diff:', error);
+      throw error;
+    }
+  }
 }
 
 const gitService = new GitService();
 
-// tRPC Router
+// tRPC Setup
 const t = initTRPC.create();
 const router = t.router;
 const procedure = t.procedure;
@@ -156,35 +184,7 @@ const appRouter = router({
         let selectedPath = repoPath;
         
         if (!selectedPath) {
-          // TEMPORARY WORKAROUND: macOS dialog bug returns empty filePaths
-          // Use the current project directory for testing
           selectedPath = '/Users/philipp/dev/claude-code-app';
-          console.log('Using hardcoded path due to macOS dialog bug:', selectedPath);
-          
-          /* 
-          // Original dialog code - has macOS bug
-          console.log('Opening file dialog with mainWindow:', !!mainWindow);
-          const result = await dialog.showOpenDialog(mainWindow, {
-            properties: ['openDirectory'],
-            title: 'Select Git Repository',
-            message: 'Choose a folder containing a Git repository (.git folder)',
-            defaultPath: require('os').homedir(),
-            buttonLabel: 'Select Repository',
-          });
-          
-          console.log('Dialog result:', result);
-          
-          if (result.canceled) {
-            throw new Error('Repository selection was canceled');
-          }
-          
-          if (!result.filePaths || result.filePaths.length === 0) {
-            throw new Error('No directory selected');
-          }
-          
-          selectedPath = result.filePaths[0];
-          console.log('Selected path:', selectedPath);
-          */
         }
         
         return await gitService.openRepository(selectedPath);
@@ -216,16 +216,40 @@ const appRouter = router({
         return { success: true };
       }),
 
+    commit: procedure
+      .input(z.object({ 
+        repoPath: z.string(), 
+        message: z.string().min(1, 'Commit message is required')
+      }))
+      .mutation(async ({ input }) => {
+        await gitService.commit(input.repoPath, input.message);
+        return { success: true };
+      }),
+
     getBranches: procedure
       .input(z.string())
       .query(async ({ input: repoPath }) => {
         return await gitService.getBranches(repoPath);
       }),
+
+    getFileDiff: procedure
+      .input(z.object({
+        repoPath: z.string(),
+        filePath: z.string(),
+        staged: z.boolean().optional().default(false)
+      }))
+      .query(async ({ input }) => {
+        return await gitService.getFileDiff(input.repoPath, input.filePath, input.staged);
+      }),
+  }),
+
+  system: router({
+    getAppVersion: procedure
+      .query(() => {
+        return process.env.npm_package_version || '1.0.0';
+      }),
   }),
 });
-
-// Global reference to main window
-let mainWindow = null;
 
 // Setup tRPC IPC handlers
 function setupTrpcIpcHandler() {
@@ -238,6 +262,9 @@ function setupTrpcIpcHandler() {
       
       for (const segment of pathArray) {
         proc = proc[segment];
+        if (!proc) {
+          throw new Error(`No procedure found on path "${procedure}"`);
+        }
       }
       
       const result = await proc(input);
@@ -265,6 +292,9 @@ function setupTrpcIpcHandler() {
     }
   });
 }
+
+// Global reference to main window
+let mainWindow = null;
 
 const createWindow = () => {
   // Create the browser window.

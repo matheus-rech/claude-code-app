@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { observable } from '@trpc/server/observable';
 import { trpc } from './trpc';
 import App from './App';
+import { preloadHighlighter } from './utils/diff-processor';
 
 const queryClient = new QueryClient();
 
@@ -21,7 +22,8 @@ const trpcClient = trpc.createClient({
           const { type, path, input } = op;
           
           if (type === 'query') {
-            window.electronAPI.trpc.query(path, input)
+            const procedurePath = Array.isArray(path) ? path.join('.') : path;
+            window.electronAPI.trpc.query(procedurePath, input)
               .then(result => {
                 observer.next({ result: { type: 'data', data: result } });
                 observer.complete();
@@ -30,7 +32,8 @@ const trpcClient = trpc.createClient({
                 observer.error(error);
               });
           } else if (type === 'mutation') {
-            window.electronAPI.trpc.mutate(path, input)
+            const procedurePath = Array.isArray(path) ? path.join('.') : path;
+            window.electronAPI.trpc.mutate(procedurePath, input)
               .then(result => {
                 observer.next({ result: { type: 'data', data: result } });
                 observer.complete();
@@ -46,6 +49,9 @@ const trpcClient = trpc.createClient({
     },
   ],
 });
+
+// Preload syntax highlighter for better performance
+preloadHighlighter();
 
 const root = createRoot(container);
 root.render(

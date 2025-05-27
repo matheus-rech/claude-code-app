@@ -8,6 +8,7 @@ interface GitRouter {
   stageFile: any;
   unstageFile: any;
   getBranches: any;
+  getFileDiff: any;
 }
 
 interface AppRouter {

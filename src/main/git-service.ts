@@ -24,9 +24,6 @@ class GitService {
   }
 
   async getStatus(repoPath) {
-    console.error('=== GitService.getStatus called ===');
-    console.error('repoPath:', repoPath);
-    
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath);
     }
@@ -36,29 +33,6 @@ class GitService {
     }
 
     const status = await this.git.status();
-
-    // Debug logging for simple-git status - force to main process stdout
-    console.error('=== Simple-git Status Debug ===');
-    console.error('current branch:', status.current);
-    console.error('status.modified:', status.modified);
-    console.error('status.staged:', status.staged);
-    console.error('status.not_added:', status.not_added);
-    console.error('status.deleted:', status.deleted);
-    console.error('status.created:', status.created);
-    console.error('status.renamed:', status.renamed);
-    console.error('status.conflicted:', status.conflicted);
-    
-    // Show individual file statuses for debugging
-    if (status.files && status.files.length > 0) {
-      console.error('Individual file statuses:');
-      status.files.forEach((file, index) => {
-        console.error(`  [${index}] ${file.path}:`);
-        console.error(`    - index: "${file.index}"`);
-        console.error(`    - working_dir: "${file.working_dir}"`);
-      });
-    }
-    
-    console.error('===============================');
 
     // Use status.files for more accurate staging information
     const staged = [];
@@ -81,11 +55,6 @@ class GitService {
       }
     });
 
-    console.error('=== Processed Results ===');
-    console.error('staged:', staged);
-    console.error('modified:', modified);
-    console.error('deleted:', deleted);
-    console.error('untracked:', status.not_added);
 
     return {
       modified,
@@ -145,6 +114,67 @@ class GitService {
       all: branches.all,
       current: branches.current,
     };
+  }
+
+  async getFileDiff(repoPath, filePath, staged = false) {
+    console.error('=== GitService.getFileDiff called ===');
+    console.error('repoPath:', repoPath);
+    console.error('filePath:', filePath);
+    console.error('staged:', staged);
+    
+    if (!this.git || this.currentRepoPath !== repoPath) {
+      await this.openRepository(repoPath);
+    }
+
+    if (!this.git) {
+      throw new Error('Git not initialized');
+    }
+
+    try {
+      let diffResult = '';
+      
+      if (staged) {
+        console.error('Getting staged diff for:', filePath);
+        // For staged files, diff against HEAD
+        diffResult = await this.git.diff(['--cached', '--', filePath]);
+      } else {
+        console.error('Getting unstaged diff for:', filePath);
+        // For unstaged files, first check if file exists in HEAD
+        try {
+          await this.git.show([`HEAD:${filePath}`]);
+          console.error('File exists in HEAD, getting normal diff');
+          // File exists in HEAD, normal diff
+          diffResult = await this.git.diff(['HEAD', '--', filePath]);
+        } catch (error) {
+          console.error('File does not exist in HEAD (untracked), creating addition diff');
+          // File doesn't exist in HEAD (untracked), show entire file as addition
+          const fullPath = path.join(repoPath, filePath);
+          
+          if (fs.existsSync(fullPath)) {
+            const content = fs.readFileSync(fullPath, 'utf8');
+            const lines = content.split('\n');
+            
+            // Create a diff-like format for new files
+            diffResult = `diff --git a/${filePath} b/${filePath}
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/${filePath}
+@@ -0,0 +1,${lines.length} @@
+${lines.map(line => `+${line}`).join('\n')}`;
+          } else {
+            console.error('File does not exist at path:', fullPath);
+          }
+        }
+      }
+      
+      console.error('Diff result length:', diffResult.length);
+      console.error('Diff result preview:', diffResult.slice(0, 200));
+      return diffResult;
+    } catch (error) {
+      console.error('Error getting file diff:', error);
+      throw error; // Re-throw to see the actual error
+    }
   }
 }
 
