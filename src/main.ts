@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('fs');
 const os = require('os');
@@ -225,6 +225,7 @@ const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    tabbingIdentifier: 'claude-code-repo-tabs',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -248,6 +249,7 @@ const createWindow = () => {
 // Some APIs can only be used after this event occurs.
 app.on('ready', () => {
   setupTrpcIpcHandler();
+  createMenu();
   createWindow();
 });
 
@@ -267,3 +269,136 @@ app.on('activate', () => {
     createWindow();
   }
 });
+
+// Create new tab function
+function createNewTab() {
+  const newWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    tabbingIdentifier: 'claude-code-repo-tabs',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    newWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  } else {
+    newWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  }
+
+  // Add as a tab to the main window if it exists
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.addTabbedWindow(newWindow);
+  }
+
+  return newWindow;
+}
+
+// Handle new tab creation
+ipcMain.handle('create-new-tab', () => {
+  return createNewTab();
+});
+
+// Set up application menu
+function createMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Tab',
+          accelerator: 'CommandOrControl+T',
+          click: () => {
+            createNewTab();
+          }
+        },
+        {
+          label: 'Close Tab',
+          accelerator: 'CommandOrControl+W',
+          role: 'close'
+        },
+        { type: 'separator' },
+        {
+          label: 'Quit',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
+          click: () => {
+            app.quit();
+          }
+        }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        {
+          label: 'Minimize',
+          accelerator: 'CommandOrControl+M',
+          role: 'minimize'
+        },
+        {
+          label: 'Close',
+          accelerator: 'CommandOrControl+W',
+          role: 'close'
+        },
+        { type: 'separator' },
+        {
+          label: 'Merge All Windows',
+          click: () => {
+            BrowserWindow.getAllWindows().forEach((window, index) => {
+              if (index > 0) {
+                window.mergeAllWindows && window.mergeAllWindows();
+              }
+            });
+          }
+        }
+      ]
+    }
+  ];
+
+  if (process.platform === 'darwin') {
+    template.unshift({
+      label: app.getName(),
+      submenu: [
+        {
+          label: 'About ' + app.getName(),
+          role: 'about'
+        },
+        { type: 'separator' },
+        {
+          label: 'Services',
+          role: 'services',
+          submenu: []
+        },
+        { type: 'separator' },
+        {
+          label: 'Hide ' + app.getName(),
+          accelerator: 'Command+H',
+          role: 'hide'
+        },
+        {
+          label: 'Hide Others',
+          accelerator: 'Command+Shift+H',
+          role: 'hideothers'
+        },
+        {
+          label: 'Show All',
+          role: 'unhide'
+        },
+        { type: 'separator' },
+        {
+          label: 'Quit',
+          accelerator: 'Command+Q',
+          click: () => {
+            app.quit();
+          }
+        }
+      ]
+    });
+  }
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
