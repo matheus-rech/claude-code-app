@@ -51,10 +51,10 @@ Current branch: ${data.current || 'unknown'}`;
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-4 py-2">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2" style={{ paddingTop: '32px' }}>
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-gray-800">
+          <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
             {repository ? repository.name : 'Git Tower Clone'}
           </h1>
           <div className="flex space-x-2">
@@ -62,7 +62,7 @@ Current branch: ${data.current || 'unknown'}`;
               <button 
                 onClick={handleGetGitStatus}
                 disabled={gitStatusMutation.isPending}
-                className="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                className="px-3 py-1 text-sm bg-green-500 dark:bg-green-600 text-white rounded hover:bg-green-600 dark:hover:bg-green-700 disabled:opacity-50"
               >
                 {gitStatusMutation.isPending ? 'Getting Status...' : 'Git Status'}
               </button>
@@ -70,7 +70,7 @@ Current branch: ${data.current || 'unknown'}`;
             <button 
               onClick={handleOpenRepository}
               disabled={openRepositoryMutation.isPending}
-              className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              className="px-3 py-1 text-sm bg-blue-500 dark:bg-blue-600 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 inline-block"
             >
               {openRepositoryMutation.isPending 
                 ? 'Opening...' 
@@ -84,14 +84,14 @@ Current branch: ${data.current || 'unknown'}`;
       </div>
 
       {repository && (
-        <div className="bg-white border-b border-gray-200">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="flex">
             <button
               onClick={() => setCurrentView('changes')}
               className={`px-4 py-2 text-sm font-medium border-b-2 ${
                 currentView === 'changes'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
               Changes
@@ -100,8 +100,8 @@ Current branch: ${data.current || 'unknown'}`;
               onClick={() => setCurrentView('history')}
               className={`px-4 py-2 text-sm font-medium border-b-2 ${
                 currentView === 'history'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
               History
@@ -114,16 +114,16 @@ Current branch: ${data.current || 'unknown'}`;
         {!repository ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-600 mb-2">
+              <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
                 Welcome to Git Tower Clone
               </h2>
-              <p className="text-gray-500 mb-4">
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
                 Select a repository to get started
               </p>
               <button 
                 onClick={handleOpenRepository}
                 disabled={openRepositoryMutation.isPending}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 inline-block"
               >
                 {openRepositoryMutation.isPending ? 'Opening...' : 'Open Repository'}
               </button>
@@ -144,13 +144,24 @@ function ChangesView({ repository }: { repository: Repository }) {
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 
-  const stageFileMutation = trpc.git.stageFile.useMutation();
-  const unstageFileMutation = trpc.git.unstageFile.useMutation();
+  const utils = trpc.useUtils();
+  
+  const stageFileMutation = trpc.git.stageFile.useMutation({
+    onSuccess: () => {
+      utils.git.getStatus.invalidate(repository.path);
+    }
+  });
+  
+  const unstageFileMutation = trpc.git.unstageFile.useMutation({
+    onSuccess: () => {
+      utils.git.getStatus.invalidate(repository.path);
+    }
+  });
 
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-gray-500">Loading git status...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading git status...</div>
       </div>
     );
   }
@@ -158,16 +169,18 @@ function ChangesView({ repository }: { repository: Repository }) {
   if (error) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-red-500">Error: {error.message}</div>
+        <div className="text-red-500 dark:text-red-400">Error: {error.message}</div>
       </div>
     );
   }
 
-  const allFiles = [
-    ...(status?.modified || []).map(f => ({ file: f, status: 'modified' as const })),
-    ...(status?.staged || []).map(f => ({ file: f, status: 'staged' as const })),
-    ...(status?.untracked || []).map(f => ({ file: f, status: 'untracked' as const })),
-    ...(status?.deleted || []).map(f => ({ file: f, status: 'deleted' as const })),
+  const stagedFileSet = new Set(status?.staged || []);
+  
+  const stagedFiles = (status?.staged || []).map(f => ({ file: f, status: 'staged' as const }));
+  const unstagedFiles = [
+    ...(status?.modified || []).map(f => ({ file: f, status: 'modified' as const, isPartiallyStaged: stagedFileSet.has(f) })),
+    ...(status?.untracked || []).map(f => ({ file: f, status: 'untracked' as const, isPartiallyStaged: false })),
+    ...(status?.deleted || []).map(f => ({ file: f, status: 'deleted' as const, isPartiallyStaged: stagedFileSet.has(f) })),
   ];
 
   const handleStageFile = (filePath: string) => {
@@ -180,37 +193,80 @@ function ChangesView({ repository }: { repository: Repository }) {
 
   return (
     <div className="flex-1 flex">
-      <div className="w-1/3 bg-white border-r border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Changed Files</h3>
-        {allFiles.length === 0 ? (
-          <div className="text-sm text-gray-500">No changes detected</div>
+      <div className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4">
+        {stagedFiles.length === 0 && unstagedFiles.length === 0 ? (
+          <div className="text-sm text-gray-500 dark:text-gray-400">No changes detected</div>
         ) : (
-          <div className="space-y-2">
-            {allFiles.map(({ file, status }) => (
-              <div key={file} className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                <div className="flex items-center space-x-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    status === 'staged' ? 'bg-green-500' :
-                    status === 'modified' ? 'bg-yellow-500' :
-                    status === 'untracked' ? 'bg-blue-500' :
-                    'bg-red-500'
-                  }`} />
-                  <span className="text-sm font-mono">{file}</span>
+          <div className="space-y-6">
+            {/* Staged Files Section */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                Staged ({stagedFiles.length})
+              </h3>
+              {stagedFiles.length === 0 ? (
+                <div className="text-xs text-gray-500 dark:text-gray-400 italic">No staged files</div>
+              ) : (
+                <div className="space-y-2">
+                  {stagedFiles.map(({ file, status }) => (
+                    <div key={`staged-${file}`} className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <div className="flex items-center space-x-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        <span className="text-sm font-mono text-gray-900 dark:text-gray-100">{file}</span>
+                      </div>
+                      <button
+                        onClick={() => handleUnstageFile(file)}
+                        className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-900 dark:text-gray-100"
+                        disabled={stageFileMutation.isPending || unstageFileMutation.isPending}
+                      >
+                        Unstage
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  onClick={() => status === 'staged' ? handleUnstageFile(file) : handleStageFile(file)}
-                  className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
-                  disabled={stageFileMutation.isPending || unstageFileMutation.isPending}
-                >
-                  {status === 'staged' ? 'Unstage' : 'Stage'}
-                </button>
-              </div>
-            ))}
+              )}
+            </div>
+
+            {/* Unstaged Files Section */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                Unstaged ({unstagedFiles.length})
+              </h3>
+              {unstagedFiles.length === 0 ? (
+                <div className="text-xs text-gray-500 dark:text-gray-400 italic">No unstaged files</div>
+              ) : (
+                <div className="space-y-2">
+                  {unstagedFiles.map(({ file, status, isPartiallyStaged }) => (
+                    <div key={`unstaged-${file}`} className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <div className="flex items-center space-x-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          status === 'modified' ? 'bg-yellow-500' :
+                          status === 'untracked' ? 'bg-blue-500' :
+                          'bg-red-500'
+                        }`} />
+                        <span className="text-sm font-mono text-gray-900 dark:text-gray-100">{file}</span>
+                        {isPartiallyStaged && (
+                          <span className="text-xs px-1 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                            partial
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleStageFile(file)}
+                        className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-900 dark:text-gray-100"
+                        disabled={stageFileMutation.isPending || unstageFileMutation.isPending}
+                      >
+                        Stage
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
-      <div className="flex-1 bg-gray-50 p-4">
-        <div className="text-center text-gray-500 mt-8">
+      <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
+        <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
           Select a file to view changes
         </div>
       </div>
@@ -223,20 +279,22 @@ function HistoryView({ repository }: { repository: Repository }) {
 
   return (
     <div className="flex-1 flex">
-      <div className="w-1/3 bg-white border-r border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Branch Info</h3>
+      <div className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Branch Info</h3>
         {branches && (
           <div className="space-y-2">
             <div className="text-sm">
-              <span className="font-medium">Current: </span>
-              <span className="font-mono text-blue-600">{branches.current}</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">Current: </span>
+              <span className="font-mono text-blue-600 dark:text-blue-400">{branches.current}</span>
             </div>
             <div className="text-sm">
-              <span className="font-medium">All branches: </span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">All branches: </span>
               <div className="mt-1 space-y-1">
                 {branches.all.map(branch => (
                   <div key={branch} className={`font-mono text-xs px-2 py-1 rounded ${
-                    branch === branches.current ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'
+                    branch === branches.current 
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                   }`}>
                     {branch}
                   </div>
@@ -246,8 +304,8 @@ function HistoryView({ repository }: { repository: Repository }) {
           </div>
         )}
       </div>
-      <div className="flex-1 bg-gray-50 p-4">
-        <div className="text-center text-gray-500 mt-8">
+      <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
+        <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
           Commit history view coming soon
         </div>
       </div>

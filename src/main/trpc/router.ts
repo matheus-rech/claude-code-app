@@ -34,7 +34,12 @@ const appRouter = router({
     getStatus: procedure
       .input(z.string())
       .query(async ({ input: repoPath }) => {
-        return await gitService.getStatus(repoPath);
+        console.error('=== TRPC getStatus called ===');
+        console.error('repoPath:', repoPath);
+        const result = await gitService.getStatus(repoPath);
+        console.error('=== TRPC getStatus result ===');
+        console.error('result:', JSON.stringify(result, null, 2));
+        return result;
       }),
 
     stageFile: procedure

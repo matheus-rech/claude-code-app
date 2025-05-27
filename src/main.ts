@@ -35,6 +35,9 @@ class GitService {
   }
 
   async getStatus(repoPath) {
+    console.error('=== GitService.getStatus called (main.ts) ===');
+    console.error('repoPath:', repoPath);
+    
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath);
     }
@@ -45,11 +48,54 @@ class GitService {
 
     const status = await this.git.status();
 
+    console.error('=== Simple-git Status Debug (main.ts) ===');
+    console.error('status.modified:', status.modified);
+    console.error('status.staged:', status.staged);
+    console.error('status.not_added:', status.not_added);
+    console.error('status.deleted:', status.deleted);
+    
+    if (status.files && status.files.length > 0) {
+      console.error('Individual file statuses:');
+      status.files.forEach((file, index) => {
+        console.error(`  [${index}] ${file.path}:`);
+        console.error(`    - index: "${file.index}"`);
+        console.error(`    - working_dir: "${file.working_dir}"`);
+      });
+    }
+    console.error('===============================');
+
+    // Process files to separate staged-only vs unstaged changes
+    const staged = [];
+    const modified = [];
+    const deleted = [];
+
+    status.files.forEach(file => {
+      // Check if file has staged changes (index status)
+      if (file.index && file.index !== ' ' && file.index !== '?') {
+        staged.push(file.path);
+      }
+      
+      // Check if file has unstaged changes (working_dir status)
+      if (file.working_dir && file.working_dir !== ' ') {
+        if (file.working_dir === 'D') {
+          deleted.push(file.path);
+        } else {
+          modified.push(file.path);
+        }
+      }
+    });
+
+    console.error('=== Processed Results ===');
+    console.error('staged:', staged);
+    console.error('modified:', modified);
+    console.error('deleted:', deleted);
+    console.error('untracked:', status.not_added);
+
     return {
-      modified: status.modified,
-      staged: status.staged,
+      modified,
+      staged,
       untracked: status.not_added,
-      deleted: status.deleted,
+      deleted,
       current: status.current,
     };
   }
@@ -226,6 +272,7 @@ const createWindow = () => {
     width: 1200,
     height: 800,
     tabbingIdentifier: 'claude-code-repo-tabs',
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -276,6 +323,7 @@ function createNewTab() {
     width: 1200,
     height: 800,
     tabbingIdentifier: 'claude-code-repo-tabs',
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
