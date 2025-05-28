@@ -3,9 +3,9 @@
  */
 class Session {
   constructor(claudeCode, sessionId = null) {
-    this.claudeCode = claudeCode;
-    this.sessionId = sessionId;
-    this.messages = [];
+    this.claudeCode = claudeCode
+    this.sessionId = sessionId
+    this.messages = []
   }
 
   /**
@@ -14,17 +14,17 @@ class Session {
    * @returns {Promise<import('./claude-code-types').ClaudeCodeResponse>}
    */
   async prompt(promptInput) {
-    const response = await this.claudeCode.chat(promptInput, this.sessionId);
-    
+    const response = await this.claudeCode.chat(promptInput, this.sessionId)
+
     if (response.success && response.message) {
-      this.sessionId = response.message.session_id;
+      this.sessionId = response.message.session_id
       this.messages.push({
         input: promptInput,
         response: response.message,
-      });
+      })
     }
-    
-    return response;
+
+    return response
   }
 
   /**
@@ -32,9 +32,9 @@ class Session {
    * @returns {Session}
    */
   fork() {
-    const newSession = new Session(this.claudeCode, this.sessionId);
-    newSession.messages = [...this.messages];
-    return newSession;
+    const newSession = new Session(this.claudeCode, this.sessionId)
+    newSession.messages = [...this.messages]
+    return newSession
   }
 
   /**
@@ -42,7 +42,7 @@ class Session {
    * @param {number} [count=1] - Number of messages to revert
    */
   revert(count = 1) {
-    this.messages.splice(-count, count);
+    this.messages.splice(-count, count)
     // Note: This doesn't actually revert the Claude session, just local tracking
   }
 
@@ -51,7 +51,7 @@ class Session {
    * @returns {string|null}
    */
   getSessionId() {
-    return this.sessionId;
+    return this.sessionId
   }
 
   /**
@@ -59,8 +59,8 @@ class Session {
    * @returns {Array}
    */
   getMessages() {
-    return [...this.messages];
+    return [...this.messages]
   }
 }
 
-module.exports = { Session };
+module.exports = { Session }

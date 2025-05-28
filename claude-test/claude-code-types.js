@@ -58,4 +58,4 @@
 
 module.exports = {
   // Export types for JSDoc reference
-};
+}

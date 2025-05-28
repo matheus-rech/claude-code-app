@@ -1,6 +1,6 @@
-const { executeCommand } = require("./claude-code-commands");
-const { Session } = require("./claude-code-session");
-const { EventEmitter } = require('events');
+const { executeCommand } = require("./claude-code-commands")
+const { Session } = require("./claude-code-session")
+const { EventEmitter } = require("node:events")
 
 /**
  * Main ClaudeCode class for interacting with Claude CLI
@@ -10,13 +10,13 @@ class ClaudeCode extends EventEmitter {
    * @param {import('./claude-code-types').ClaudeCodeOptions} [options]
    */
   constructor(options = {}) {
-    super();
+    super()
     this.options = {
       claudeCodePath: "claude",
       workingDirectory: process.cwd(),
       verbose: false,
       ...options,
-    };
+    }
   }
 
   /**
@@ -24,20 +24,20 @@ class ClaudeCode extends EventEmitter {
    * @returns {string[]}
    */
   defaultArgs() {
-    const args = [];
+    const args = []
 
     if (this.options.verbose) {
-      args.push("--verbose");
+      args.push("--verbose")
     }
 
     if (this.options.model) {
-      args.push("--model", this.options.model);
+      args.push("--model", this.options.model)
     }
 
     // Always add dangerous skip permissions for automated usage
-    args.push("--dangerously-skip-permissions");
+    args.push("--dangerously-skip-permissions")
 
-    return args;
+    return args
   }
 
   /**
@@ -49,46 +49,50 @@ class ClaudeCode extends EventEmitter {
   async chat(promptInput, sessionId = null) {
     try {
       const prompt =
-        typeof promptInput === "string" ? promptInput : promptInput.prompt;
+        typeof promptInput === "string" ? promptInput : promptInput.prompt
       const systemPrompt =
-        typeof promptInput === "object" ? promptInput.systemPrompt : null;
+        typeof promptInput === "object" ? promptInput.systemPrompt : null
 
-      const args = [...this.defaultArgs()];
-      args.push("--print");
-      args.push("--output-format", "stream-json");
+      const args = [...this.defaultArgs()]
+      args.push("--print")
+      args.push("--output-format", "stream-json")
 
       if (sessionId) {
-        args.push("--resume", sessionId);
+        args.push("--resume", sessionId)
       }
 
       // Use piped input instead of command argument to avoid hanging
-      const command = `echo "${prompt.replace(/"/g, '\\"')}" | ${this.options.claudeCodePath} ${args.join(" ")}`;
+      const command = `echo "${prompt.replace(/"/g, '\\"')}" | ${this.options.claudeCodePath} ${args.join(" ")}`
 
       if (this.options.verbose) {
-        console.log("Executing command:", command);
+        console.log("Executing command:", command)
       }
 
-      const result = await executeCommand(command, {
-        cwd: this.options.workingDirectory,
-      }, this);
+      const result = await executeCommand(
+        command,
+        {
+          cwd: this.options.workingDirectory,
+        },
+        this,
+      )
 
       if (result.exitCode === 0) {
         try {
           // Parse streaming JSON - look for the final result
-          const lines = result.stdout.split('\n').filter(line => line.trim());
-          let finalResult = null;
-          
+          const lines = result.stdout.split("\n").filter((line) => line.trim())
+          let finalResult = null
+
           for (const line of lines) {
             try {
-              const json = JSON.parse(line);
-              if (json.type === 'result') {
-                finalResult = json;
+              const json = JSON.parse(line)
+              if (json.type === "result") {
+                finalResult = json
               }
             } catch (e) {
               // Skip invalid JSON lines
             }
           }
-          
+
           if (finalResult) {
             return {
               success: true,
@@ -102,22 +106,21 @@ class ClaudeCode extends EventEmitter {
                 duration_ms: finalResult.duration_ms,
                 duration_api_ms: finalResult.duration_api_ms,
               },
-            };
-          } else {
-            // Fallback to treating as plain text
-            return {
-              success: true,
-              message: {
-                type: "text",
-                result: result.stdout,
-                session_id: sessionId || "unknown",
-                num_turns: 1,
-                is_error: false,
-                cost_usd: 0,
-                duration_ms: 0,
-                duration_api_ms: 0,
-              },
-            };
+            }
+          }
+          // Fallback to treating as plain text
+          return {
+            success: true,
+            message: {
+              type: "text",
+              result: result.stdout,
+              session_id: sessionId || "unknown",
+              num_turns: 1,
+              is_error: false,
+              cost_usd: 0,
+              duration_ms: 0,
+              duration_api_ms: 0,
+            },
           }
         } catch (parseError) {
           // If JSON parsing fails, treat as plain text response
@@ -133,7 +136,7 @@ class ClaudeCode extends EventEmitter {
               duration_ms: 0,
               duration_api_ms: 0,
             },
-          };
+          }
         }
       } else {
         return {
@@ -144,7 +147,7 @@ class ClaudeCode extends EventEmitter {
             details: result,
           },
           exitCode: result.exitCode,
-        };
+        }
       }
     } catch (error) {
       return {
@@ -154,7 +157,7 @@ class ClaudeCode extends EventEmitter {
           message: error.message,
           details: error,
         },
-      };
+      }
     }
   }
 
@@ -165,15 +168,19 @@ class ClaudeCode extends EventEmitter {
    */
   async runCommand(args) {
     try {
-      const command = `${this.options.claudeCodePath} ${args.join(" ")}`;
+      const command = `${this.options.claudeCodePath} ${args.join(" ")}`
 
       if (this.options.verbose) {
-        console.log("Executing command:", command);
+        console.log("Executing command:", command)
       }
 
-      const result = await executeCommand(command, {
-        cwd: this.options.workingDirectory,
-      }, this);
+      const result = await executeCommand(
+        command,
+        {
+          cwd: this.options.workingDirectory,
+        },
+        this,
+      )
 
       return {
         success: result.exitCode === 0,
@@ -199,7 +206,7 @@ class ClaudeCode extends EventEmitter {
               }
             : undefined,
         exitCode: result.exitCode,
-      };
+      }
     } catch (error) {
       return {
         success: false,
@@ -208,7 +215,7 @@ class ClaudeCode extends EventEmitter {
           message: error.message,
           details: error,
         },
-      };
+      }
     }
   }
 
@@ -217,8 +224,8 @@ class ClaudeCode extends EventEmitter {
    * @returns {Promise<string>}
    */
   async version() {
-    const response = await this.runCommand(["--version"]);
-    return response.success ? response.message.result.trim() : "unknown";
+    const response = await this.runCommand(["--version"])
+    return response.success ? response.message.result.trim() : "unknown"
   }
 
   /**
@@ -226,7 +233,7 @@ class ClaudeCode extends EventEmitter {
    * @param {import('./claude-code-types').ClaudeCodeOptions} options
    */
   setOptions(options) {
-    this.options = { ...this.options, ...options };
+    this.options = { ...this.options, ...options }
   }
 
   /**
@@ -234,7 +241,7 @@ class ClaudeCode extends EventEmitter {
    * @returns {import('./claude-code-types').ClaudeCodeOptions}
    */
   getOptions() {
-    return { ...this.options };
+    return { ...this.options }
   }
 
   /**
@@ -243,8 +250,8 @@ class ClaudeCode extends EventEmitter {
    * @returns {Session}
    */
   newSession(sessionId = null) {
-    return new Session(this, sessionId);
+    return new Session(this, sessionId)
   }
 }
 
-module.exports = { ClaudeCode };
+module.exports = { ClaudeCode }
