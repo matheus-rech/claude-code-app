@@ -124,7 +124,22 @@ class GitService {
       throw new Error('Git not initialized');
     }
 
-    // Reset the file to HEAD state (discard changes)
+    // Check if file is untracked first
+    const status = await this.git.status();
+    const isUntracked = status.not_added.includes(filePath);
+    
+    if (isUntracked) {
+      // For untracked files, we delete them instead of resetting
+      const fullPath = path.join(repoPath, filePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+        return;
+      } else {
+        throw new Error(`File not found: ${filePath}`);
+      }
+    }
+    
+    // For tracked files, reset to HEAD state
     await this.git.checkout(['HEAD', '--', filePath]);
   }
 

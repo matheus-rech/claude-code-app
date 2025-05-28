@@ -236,7 +236,13 @@ function ChangesView({
   };
 
   const handleResetFile = (filePath: string) => {
-    if (confirm(`Are you sure you want to discard all changes to ${filePath}? This cannot be undone.`)) {
+    // Check if file is untracked
+    const isUntracked = status?.untracked?.includes(filePath) || false;
+    const message = isUntracked
+      ? `Are you sure you want to delete ${filePath}? This cannot be undone.`
+      : `Are you sure you want to discard all changes to ${filePath}? This cannot be undone.`;
+    
+    if (confirm(message)) {
       resetFileMutation.mutate({ repoPath: repository.path, filePath });
     }
   };
@@ -341,7 +347,13 @@ function ChangesView({
                           }
                         ];
                         
-                        if (status !== 'untracked') {
+                        if (status === 'untracked') {
+                          menuItems.push({
+                            label: 'Delete File',
+                            action: 'reset',
+                            enabled: true
+                          });
+                        } else {
                           menuItems.push({
                             label: 'Discard Changes',
                             action: 'reset',
