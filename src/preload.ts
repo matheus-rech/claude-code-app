@@ -10,6 +10,12 @@ export interface ElectronAPI {
     on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
     removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
   };
+  showContextMenu: (menuItems: Array<{
+    label: string;
+    action: string;
+    enabled?: boolean;
+    type?: 'normal' | 'separator';
+  }>) => Promise<string | null>;
 }
 
 // Create the API object
@@ -31,6 +37,10 @@ const electronAPI: ElectronAPI = {
     removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => {
       ipcRenderer.removeListener(channel, listener);
     }
+  },
+  
+  showContextMenu: async (menuItems) => {
+    return await ipcRenderer.invoke('show-context-menu', menuItems);
   }
 };
 

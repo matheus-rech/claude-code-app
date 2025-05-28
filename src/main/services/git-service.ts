@@ -1,6 +1,6 @@
-const { simpleGit } = require('simple-git');
-const path = require('path');
-const fs = require('fs');
+import { simpleGit } from 'simple-git';
+import path from 'path';
+import fs from 'fs';
 
 class GitService {
   private git = null;
@@ -54,7 +54,6 @@ class GitService {
         }
       }
     });
-
 
     return {
       modified,
@@ -116,12 +115,20 @@ class GitService {
     };
   }
 
+  async resetFile(repoPath, filePath) {
+    if (!this.git || this.currentRepoPath !== repoPath) {
+      await this.openRepository(repoPath);
+    }
+
+    if (!this.git) {
+      throw new Error('Git not initialized');
+    }
+
+    // Reset the file to HEAD state (discard changes)
+    await this.git.checkout(['HEAD', '--', filePath]);
+  }
+
   async getFileDiff(repoPath, filePath, staged = false) {
-    console.error('=== GitService.getFileDiff called ===');
-    console.error('repoPath:', repoPath);
-    console.error('filePath:', filePath);
-    console.error('staged:', staged);
-    
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath);
     }
@@ -134,27 +141,20 @@ class GitService {
       let diffResult = '';
       
       if (staged) {
-        console.error('Getting staged diff for:', filePath);
-        // For staged files, diff against HEAD
+        // Show staged changes vs HEAD
         diffResult = await this.git.diff(['--cached', '--', filePath]);
       } else {
-        console.error('Getting unstaged diff for:', filePath);
-        // For unstaged files, first check if file exists in HEAD
-        try {
-          await this.git.show([`HEAD:${filePath}`]);
-          console.error('File exists in HEAD, getting normal diff');
-          // File exists in HEAD, normal diff
-          diffResult = await this.git.diff(['HEAD', '--', filePath]);
-        } catch (error) {
-          console.error('File does not exist in HEAD (untracked), creating addition diff');
-          // File doesn't exist in HEAD (untracked), show entire file as addition
+        // Show unstaged changes vs staged (index)
+        diffResult = await this.git.diff(['--', filePath]);
+        
+        // If no diff (file might be untracked), show the entire file as added
+        if (!diffResult) {
           const fullPath = path.join(repoPath, filePath);
           
           if (fs.existsSync(fullPath)) {
             const content = fs.readFileSync(fullPath, 'utf8');
             const lines = content.split('\n');
             
-            // Create a diff-like format for new files
             diffResult = `diff --git a/${filePath} b/${filePath}
 new file mode 100644
 index 0000000..0000000
@@ -162,22 +162,18 @@ index 0000000..0000000
 +++ b/${filePath}
 @@ -0,0 +1,${lines.length} @@
 ${lines.map(line => `+${line}`).join('\n')}`;
-          } else {
-            console.error('File does not exist at path:', fullPath);
           }
         }
       }
       
-      console.error('Diff result length:', diffResult.length);
-      console.error('Diff result preview:', diffResult.slice(0, 200));
       return diffResult;
     } catch (error) {
       console.error('Error getting file diff:', error);
-      throw error; // Re-throw to see the actual error
+      throw error;
     }
   }
 }
 
 const gitService = new GitService();
 
-module.exports = { gitService };
+export { gitService };

@@ -170,6 +170,17 @@ function ChangesView({
     }
   });
 
+  const resetFileMutation = trpc.git.resetFile.useMutation({
+    onSuccess: () => {
+      utils.git.getStatus.invalidate(repository.path);
+      // Close diff view if the reset file was selected
+      if (selectedFile && selectedFile.file === resetFileMutation.variables?.filePath) {
+        setSelectedFile(null);
+        setSelectedView(null);
+      }
+    }
+  });
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -189,11 +200,32 @@ function ChangesView({
   const stagedFileSet = new Set(status?.staged || []);
   
   const stagedFiles = (status?.staged || []).map(f => ({ file: f, status: 'staged' as const }));
-  const unstagedFiles = [
-    ...(status?.modified || []).map(f => ({ file: f, status: 'modified' as const, isPartiallyStaged: stagedFileSet.has(f) })),
-    ...(status?.untracked || []).map(f => ({ file: f, status: 'untracked' as const, isPartiallyStaged: false })),
-    ...(status?.deleted || []).map(f => ({ file: f, status: 'deleted' as const, isPartiallyStaged: stagedFileSet.has(f) })),
-  ];
+  
+  // Create a set of all unstaged files to avoid duplicates
+  const unstagedFileMap = new Map();
+  
+  // Add modified files
+  (status?.modified || []).forEach(f => {
+    if (!unstagedFileMap.has(f)) {
+      unstagedFileMap.set(f, { file: f, status: 'modified' as const, isPartiallyStaged: stagedFileSet.has(f) });
+    }
+  });
+  
+  // Add untracked files
+  (status?.untracked || []).forEach(f => {
+    if (!unstagedFileMap.has(f)) {
+      unstagedFileMap.set(f, { file: f, status: 'untracked' as const, isPartiallyStaged: false });
+    }
+  });
+  
+  // Add deleted files
+  (status?.deleted || []).forEach(f => {
+    if (!unstagedFileMap.has(f)) {
+      unstagedFileMap.set(f, { file: f, status: 'deleted' as const, isPartiallyStaged: stagedFileSet.has(f) });
+    }
+  });
+  
+  const unstagedFiles = Array.from(unstagedFileMap.values());
 
   const handleStageFile = (filePath: string) => {
     stageFileMutation.mutate({ repoPath: repository.path, filePath });
@@ -201,6 +233,12 @@ function ChangesView({
 
   const handleUnstageFile = (filePath: string) => {
     unstageFileMutation.mutate({ repoPath: repository.path, filePath });
+  };
+
+  const handleResetFile = (filePath: string) => {
+    if (confirm(`Are you sure you want to discard all changes to ${filePath}? This cannot be undone.`)) {
+      resetFileMutation.mutate({ repoPath: repository.path, filePath });
+    }
   };
 
   return (
@@ -228,6 +266,29 @@ function ChangesView({
                       onClick={() => {
                         setSelectedFile({ file, staged: true });
                         setSelectedView('file');
+                      }}
+                      onContextMenu={async (e) => {
+                        e.preventDefault();
+                        
+                        const action = await window.electronAPI.showContextMenu([
+                          {
+                            label: 'Unstage',
+                            action: 'unstage',
+                            enabled: true
+                          },
+                          {
+                            label: 'View Diff',
+                            action: 'view-diff',
+                            enabled: true
+                          }
+                        ]);
+                        
+                        if (action === 'unstage') {
+                          handleUnstageFile(file);
+                        } else if (action === 'view-diff') {
+                          setSelectedFile({ file, staged: true });
+                          setSelectedView('file');
+                        }
                       }}
                     >
                       <div className="flex items-center space-x-2">
@@ -268,6 +329,42 @@ function ChangesView({
                       onClick={() => {
                         setSelectedFile({ file, staged: false });
                         setSelectedView('file');
+                      }}
+                      onContextMenu={async (e) => {
+                        e.preventDefault();
+                        
+                        const menuItems = [
+                          {
+                            label: 'Stage',
+                            action: 'stage',
+                            enabled: true
+                          }
+                        ];
+                        
+                        if (status !== 'untracked') {
+                          menuItems.push({
+                            label: 'Discard Changes',
+                            action: 'reset',
+                            enabled: true
+                          });
+                        }
+                        
+                        menuItems.push({
+                          label: 'View Diff',
+                          action: 'view-diff',
+                          enabled: true
+                        });
+                        
+                        const action = await window.electronAPI.showContextMenu(menuItems);
+                        
+                        if (action === 'stage') {
+                          handleStageFile(file);
+                        } else if (action === 'reset') {
+                          handleResetFile(file);
+                        } else if (action === 'view-diff') {
+                          setSelectedFile({ file, staged: false });
+                          setSelectedView('file');
+                        }
                       }}
                     >
                       <div className="flex items-center space-x-2">
