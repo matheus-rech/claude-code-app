@@ -5,6 +5,268 @@ const started = require('electron-squirrel-startup');
 const { simpleGit } = require('simple-git');
 const { initTRPC } = require('@trpc/server');
 const { z } = require('zod');
+// Claude Code implementation inline
+const { spawn } = require('child_process');
+const { EventEmitter } = require('events');
+
+/**
+ * Execute a command and return the result
+ */
+async function executeCommand(command, options = {}, emitter = null) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('sh', ['-c', command], {
+      cwd: options.cwd || process.cwd(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...options.env },
+    });
+
+    // Add timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error('Command timed out after 60 seconds'));
+    }, 60000);
+
+    let stdout = '';
+    let stderr = '';
+    let buffer = '';
+
+    child.stdout.on('data', (data) => {
+      const chunk = data.toString();
+      stdout += chunk;
+      
+      // Emit JSON lines if emitter is provided
+      if (emitter) {
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed) {
+            try {
+              const json = JSON.parse(trimmed);
+              emitter.emit('json', json);
+            } catch (e) {
+              emitter.emit('raw', trimmed);
+            }
+          }
+        }
+      }
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      
+      // Process any remaining buffer content
+      if (emitter && buffer.trim()) {
+        try {
+          const json = JSON.parse(buffer.trim());
+          emitter.emit('json', json);
+        } catch (e) {
+          emitter.emit('raw', buffer.trim());
+        }
+      }
+      
+      resolve({
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+        exitCode: code || 0,
+      });
+    });
+
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Main ClaudeCode class for interacting with Claude CLI
+ */
+class ClaudeCode extends EventEmitter {
+  constructor(options = {}) {
+    super();
+    this.options = {
+      claudeCodePath: 'npx @anthropic-ai/claude-code',
+      workingDirectory: process.cwd(),
+      verbose: false,
+      ...options,
+    };
+  }
+
+  defaultArgs() {
+    const args = [];
+    
+    if (this.options.verbose) {
+      args.push('--verbose');
+    }
+    
+    if (this.options.model) {
+      args.push('--model', this.options.model);
+    }
+    
+    // Always add dangerous skip permissions for automated usage
+    args.push('--dangerously-skip-permissions');
+    
+    return args;
+  }
+
+  async chat(promptInput, sessionId = null) {
+    try {
+      const prompt = typeof promptInput === 'string' ? promptInput : promptInput.prompt;
+      const systemPrompt = typeof promptInput === 'object' ? promptInput.systemPrompt : null;
+      
+      const args = [...this.defaultArgs()];
+      args.push('--print');
+      args.push('--output-format', 'stream-json');
+      
+      if (sessionId) {
+        args.push('--resume', sessionId);
+      }
+      
+      // Use piped input instead of command argument to avoid hanging
+      const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+      const command = `echo "${escapedPrompt}" | ${this.options.claudeCodePath} ${args.join(' ')}`;
+      
+      if (this.options.verbose) {
+        console.log('Executing command:', command);
+      }
+      
+      const result = await executeCommand(command, {
+        cwd: this.options.workingDirectory,
+      }, this);
+      
+      if (result.exitCode === 0) {
+        // Parse streaming JSON lines to extract the assistant message
+        let assistantContent = '';
+        let finalResult = null;
+        
+        const lines = result.stdout.split('\n');
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const json = JSON.parse(line.trim());
+              
+              // Extract assistant message content
+              if (json.type === 'assistant' && json.message && json.message.content) {
+                // Handle content array with text objects
+                if (Array.isArray(json.message.content)) {
+                  for (const contentItem of json.message.content) {
+                    if (contentItem.type === 'text' && contentItem.text) {
+                      assistantContent += contentItem.text;
+                    }
+                  }
+                } else if (typeof json.message.content === 'string') {
+                  assistantContent += json.message.content;
+                }
+              }
+              
+              // Store final result for session info
+              if (json.type === 'result') {
+                finalResult = json;
+              }
+            } catch (e) {
+              // Skip invalid JSON lines
+            }
+          }
+        }
+        
+        const content = String(assistantContent || result.stdout || 'No response');
+        console.log('=== CLAUDE CODE RESPONSE ===');
+        console.log('assistantContent:', assistantContent);
+        console.log('result.stdout:', result.stdout);
+        console.log('final content:', content);
+        
+        return {
+          success: true,
+          message: finalResult || {
+            type: 'text',
+            result: assistantContent || result.stdout,
+            session_id: sessionId || 'unknown',
+            num_turns: 1,
+            is_error: false,
+            cost_usd: 0,
+            duration_ms: 0,
+            duration_api_ms: 0,
+          },
+          content: content,
+        };
+      } else {
+        return {
+          success: false,
+          error: {
+            code: 'COMMAND_FAILED',
+            message: result.stderr || 'Command execution failed',
+            details: result,
+          },
+          exitCode: result.exitCode,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'EXECUTION_ERROR',
+          message: error.message,
+          details: error,
+        },
+      };
+    }
+  }
+
+  async version() {
+    const response = await this.runCommand(['--version']);
+    return response.success ? response.message.result.trim() : 'unknown';
+  }
+
+  async runCommand(args) {
+    try {
+      const command = `${this.options.claudeCodePath} ${args.join(' ')}`;
+      
+      if (this.options.verbose) {
+        console.log('Executing command:', command);
+      }
+      
+      const result = await executeCommand(command, {
+        cwd: this.options.workingDirectory,
+      });
+      
+      return {
+        success: result.exitCode === 0,
+        message: result.exitCode === 0 ? {
+          type: 'command',
+          result: result.stdout,
+          session_id: 'command',
+          num_turns: 1,
+          is_error: false,
+          cost_usd: 0,
+          duration_ms: 0,
+          duration_api_ms: 0,
+        } : undefined,
+        error: result.exitCode !== 0 ? {
+          code: 'COMMAND_FAILED',
+          message: result.stderr || 'Command failed',
+          details: result,
+        } : undefined,
+        exitCode: result.exitCode,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'EXECUTION_ERROR',
+          message: error.message,
+          details: error,
+        },
+      };
+    }
+  }
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -247,6 +509,39 @@ const appRouter = router({
     getAppVersion: procedure
       .query(() => {
         return process.env.npm_package_version || '1.0.0';
+      }),
+  }),
+
+  claudeCode: router({
+    chat: procedure
+      .input(z.object({
+        message: z.string(),
+        sessionId: z.string().optional(),
+        verbose: z.boolean().optional().default(false)
+      }))
+      .mutation(async ({ input }) => {
+        const claudeCode = new ClaudeCode({
+          verbose: input.verbose,
+          workingDirectory: process.cwd()
+        });
+
+        const response = await claudeCode.chat(input.message, input.sessionId);
+        
+        if (response.success) {
+          return {
+            content: response.content || response.message?.result || 'No response',
+            sessionId: response.message?.session_id,
+            success: true
+          };
+        } else {
+          throw new Error(response.error?.message || 'Unknown error');
+        }
+      }),
+
+    version: procedure
+      .query(async () => {
+        const claudeCode = new ClaudeCode();
+        return await claudeCode.version();
       }),
   }),
 });

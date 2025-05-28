@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { trpc } from './trpc';
 import DiffViewer from './components/DiffViewer';
+import ChatInterface from './components/ChatInterface';
 
 type GitView = 'changes' | 'history';
 
@@ -12,6 +13,8 @@ interface Repository {
 function App() {
   const [currentView, setCurrentView] = useState<GitView>('changes');
   const [repository, setRepository] = useState<Repository | null>(null);
+  const [selectedView, setSelectedView] = useState<'file' | 'chat' | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ file: string; staged: boolean } | null>(null);
 
   const openRepositoryMutation = trpc.git.openRepository.useMutation({
     onSuccess: (data) => {
@@ -108,7 +111,13 @@ Current branch: ${data.current || 'unknown'}`;
             </div>
           </div>
         ) : currentView === 'changes' ? (
-          <ChangesView repository={repository} />
+          <ChangesView 
+            repository={repository} 
+            selectedView={selectedView}
+            setSelectedView={setSelectedView}
+            selectedFile={selectedFile}
+            setSelectedFile={setSelectedFile}
+          />
         ) : (
           <HistoryView repository={repository} />
         )}
@@ -117,8 +126,19 @@ Current branch: ${data.current || 'unknown'}`;
   );
 }
 
-function ChangesView({ repository }: { repository: Repository }) {
-  const [selectedFile, setSelectedFile] = useState<{ file: string; staged: boolean } | null>(null);
+function ChangesView({ 
+  repository, 
+  selectedView, 
+  setSelectedView, 
+  selectedFile, 
+  setSelectedFile 
+}: { 
+  repository: Repository; 
+  selectedView: 'file' | 'chat' | null;
+  setSelectedView: (view: 'file' | 'chat' | null) => void;
+  selectedFile: { file: string; staged: boolean } | null;
+  setSelectedFile: (file: { file: string; staged: boolean } | null) => void;
+}) {
   
   const { data: status, isLoading, error } = trpc.git.getStatus.useQuery(repository.path, {
     refetchInterval: 2000, // Refresh every 2 seconds
@@ -205,7 +225,10 @@ function ChangesView({ repository }: { repository: Repository }) {
                       className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
                         selectedFile?.file === file && selectedFile?.staged ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                       }`}
-                      onClick={() => setSelectedFile({ file, staged: true })}
+                      onClick={() => {
+                        setSelectedFile({ file, staged: true });
+                        setSelectedView('file');
+                      }}
                     >
                       <div className="flex items-center space-x-2">
                         <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -242,7 +265,10 @@ function ChangesView({ repository }: { repository: Repository }) {
                       className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
                         selectedFile?.file === file && !selectedFile?.staged ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                       }`}
-                      onClick={() => setSelectedFile({ file, staged: false })}
+                      onClick={() => {
+                        setSelectedFile({ file, staged: false });
+                        setSelectedView('file');
+                      }}
                     >
                       <div className="flex items-center space-x-2">
                         <span className={`w-2 h-2 rounded-full ${
@@ -274,9 +300,32 @@ function ChangesView({ repository }: { repository: Repository }) {
             </div>
           </div>
         )}
+        
+        {/* Claude Code Button - Sticky at bottom */}
+        <div className="sticky bottom-0 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <button
+            onClick={() => {
+              if (selectedView === 'chat') {
+                setSelectedView(null);
+              } else {
+                setSelectedView('chat');
+                setSelectedFile(null);
+              }
+            }}
+            className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors ${
+              selectedView === 'chat'
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            🤖 Claude Code
+          </button>
+        </div>
       </div>
       <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4 overflow-y-auto overflow-x-hidden" style={{ height: 'calc(100vh - 120px)' }}>
-        {selectedFile ? (
+        {selectedView === 'chat' ? (
+          <ChatInterface onClose={() => setSelectedView(null)} />
+        ) : selectedFile ? (
           <div>
             {diffLoading ? (
               <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
@@ -301,7 +350,7 @@ function ChangesView({ repository }: { repository: Repository }) {
           </div>
         ) : (
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
-            Select a file to view changes
+            Select a file to view changes or use Claude Code
           </div>
         )}
       </div>

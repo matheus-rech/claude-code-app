@@ -11,8 +11,19 @@ interface GitRouter {
   getFileDiff: any;
 }
 
+interface ClaudeCodeRouter {
+  chat: any;
+  version: any;
+}
+
+interface SystemRouter {
+  getAppVersion: any;
+}
+
 interface AppRouter {
   git: GitRouter;
+  claudeCode: ClaudeCodeRouter;
+  system: SystemRouter;
 }
 
 export const trpc = createTRPCReact<AppRouter>();

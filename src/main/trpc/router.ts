@@ -2,6 +2,8 @@ const { initTRPC } = require('@trpc/server');
 const { z } = require('zod');
 const { gitService } = require('../git-service');
 const { dialog } = require('electron');
+const { ClaudeCode } = require('../claude-code');
+
 
 const t = initTRPC.create();
 
@@ -102,6 +104,40 @@ const appRouter = router({
         return process.env.npm_package_version || '1.0.0';
       }),
   }),
+
+  claudeCode: router({
+    chat: procedure
+      .input(z.object({
+        message: z.string(),
+        sessionId: z.string().optional(),
+        verbose: z.boolean().optional().default(false)
+      }))
+      .mutation(async ({ input }) => {
+        const claudeCode = new ClaudeCode({
+          verbose: input.verbose,
+          workingDirectory: process.cwd()
+        });
+
+        const response = await claudeCode.chat(input.message, input.sessionId);
+        
+        if (response.success) {
+          return {
+            content: response.content || response.message?.result || 'No response',
+            sessionId: response.message?.session_id,
+            success: true
+          };
+        } else {
+          throw new Error(response.error?.message || 'Unknown error');
+        }
+      }),
+
+    version: procedure
+      .query(async () => {
+        const claudeCode = new ClaudeCode();
+        return await claudeCode.version();
+      }),
+  }),
 });
+
 
 module.exports = { router, procedure, appRouter };
