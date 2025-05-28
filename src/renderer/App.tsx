@@ -324,7 +324,10 @@ function ChangesView({
       </div>
       <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4 overflow-y-auto overflow-x-hidden" style={{ height: 'calc(100vh - 120px)' }}>
         {selectedView === 'chat' ? (
-          <ChatInterface onClose={() => setSelectedView(null)} />
+          <ChatInterface 
+            onClose={() => setSelectedView(null)} 
+            repository={repository}
+          />
         ) : selectedFile ? (
           <div>
             {diffLoading ? (

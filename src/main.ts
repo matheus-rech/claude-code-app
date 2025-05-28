@@ -142,9 +142,10 @@ class ClaudeCode extends EventEmitter {
       }, this);
       
       if (result.exitCode === 0) {
-        // Parse streaming JSON lines to extract the assistant message
-        let assistantContent = '';
+        // Parse streaming JSON lines and collect all messages
+        let allMessages = [];
         let finalResult = null;
+        let sessionId = null;
         
         const lines = result.stdout.split('\n');
         for (const line of lines) {
@@ -152,23 +153,63 @@ class ClaudeCode extends EventEmitter {
             try {
               const json = JSON.parse(line.trim());
               
-              // Extract assistant message content
-              if (json.type === 'assistant' && json.message && json.message.content) {
-                // Handle content array with text objects
+              // Store session ID from system init
+              if (json.type === 'system' && json.subtype === 'init' && json.session_id) {
+                sessionId = json.session_id;
+                allMessages.push({
+                  type: 'system',
+                  content: `🔧 Claude Code initialized with ${json.tools?.length || 0} tools available`,
+                  timestamp: new Date().toISOString()
+                });
+              }
+              
+              // Handle assistant messages
+              else if (json.type === 'assistant' && json.message && json.message.content) {
                 if (Array.isArray(json.message.content)) {
                   for (const contentItem of json.message.content) {
                     if (contentItem.type === 'text' && contentItem.text) {
-                      assistantContent += contentItem.text;
+                      allMessages.push({
+                        type: 'assistant',
+                        content: contentItem.text,
+                        timestamp: new Date().toISOString()
+                      });
+                    } else if (contentItem.type === 'tool_use') {
+                      allMessages.push({
+                        type: 'system',
+                        content: `🔧 Using tool: ${contentItem.name}${contentItem.input ? ` with ${Object.keys(contentItem.input).join(', ')}` : ''}`,
+                        timestamp: new Date().toISOString()
+                      });
                     }
                   }
-                } else if (typeof json.message.content === 'string') {
-                  assistantContent += json.message.content;
+                }
+              }
+              
+              // Handle tool results
+              else if (json.type === 'user' && json.message && json.message.content) {
+                if (Array.isArray(json.message.content)) {
+                  for (const contentItem of json.message.content) {
+                    if (contentItem.type === 'tool_result' && contentItem.content) {
+                      const preview = typeof contentItem.content === 'string' 
+                        ? contentItem.content.substring(0, 100) + (contentItem.content.length > 100 ? '...' : '')
+                        : '[Tool result]';
+                      allMessages.push({
+                        type: 'system',
+                        content: `📄 Tool result: ${preview}`,
+                        timestamp: new Date().toISOString()
+                      });
+                    }
+                  }
                 }
               }
               
               // Store final result for session info
-              if (json.type === 'result') {
+              else if (json.type === 'result') {
                 finalResult = json;
+                allMessages.push({
+                  type: 'system',
+                  content: `✅ Completed in ${json.duration_ms}ms (${json.num_turns} turns, $${json.cost_usd?.toFixed(4) || '0.0000'})`,
+                  timestamp: new Date().toISOString()
+                });
               }
             } catch (e) {
               // Skip invalid JSON lines
@@ -176,17 +217,16 @@ class ClaudeCode extends EventEmitter {
           }
         }
         
-        const content = String(assistantContent || result.stdout || 'No response');
         console.log('=== CLAUDE CODE RESPONSE ===');
-        console.log('assistantContent:', assistantContent);
         console.log('result.stdout:', result.stdout);
-        console.log('final content:', content);
+        console.log('allMessages:', allMessages);
+        console.log('finalResult:', finalResult);
         
         return {
           success: true,
           message: finalResult || {
             type: 'text',
-            result: assistantContent || result.stdout,
+            result: allMessages.length > 0 ? 'Multiple messages processed' : result.stdout,
             session_id: sessionId || 'unknown',
             num_turns: 1,
             is_error: false,
@@ -194,7 +234,9 @@ class ClaudeCode extends EventEmitter {
             duration_ms: 0,
             duration_api_ms: 0,
           },
-          content: content,
+          content: allMessages,
+          sessionId: sessionId,
+          allMessages: allMessages,
         };
       } else {
         return {
@@ -446,7 +488,7 @@ const appRouter = router({
         let selectedPath = repoPath;
         
         if (!selectedPath) {
-          selectedPath = '/Users/philipp/dev/claude-code-app';
+          selectedPath = '/Users/philipp/dev/headlessui-elements';
         }
         
         return await gitService.openRepository(selectedPath);
@@ -513,18 +555,21 @@ const appRouter = router({
   }),
 
   claudeCode: router({
-    chat: procedure
+    sendMessage: procedure
       .input(z.object({
         message: z.string(),
-        sessionId: z.string().optional(),
-        verbose: z.boolean().optional().default(false)
+        sessionId: z.string().nullable().optional(),
+        verbose: z.boolean().optional().default(false),
+        repoPath: z.string().optional()
       }))
       .mutation(async ({ input }) => {
+        const workingDir = input.repoPath || '/Users/philipp/dev/headlessui-elements';
         const claudeCode = new ClaudeCode({
           verbose: input.verbose,
-          workingDirectory: process.cwd()
+          workingDirectory: workingDir
         });
 
+        // For now, fall back to synchronous response to fix the crash
         const response = await claudeCode.chat(input.message, input.sessionId);
         
         if (response.success) {

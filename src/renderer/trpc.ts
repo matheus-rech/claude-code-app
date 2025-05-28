@@ -12,7 +12,7 @@ interface GitRouter {
 }
 
 interface ClaudeCodeRouter {
-  chat: any;
+  sendMessage: any;
   version: any;
 }
 
