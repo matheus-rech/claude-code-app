@@ -20,7 +20,7 @@ function App() {
   } | null>(null)
 
   const openRepositoryMutation = trpc.git.openRepository.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: Repository) => {
       setRepository(data)
     },
     onError: (error) => {
@@ -29,21 +29,28 @@ function App() {
     },
   })
 
-  const gitStatusMutation = trpc.git.getStatus.useMutation({
-    onSuccess: (data) => {
+  const [shouldGetStatus, setShouldGetStatus] = useState(false)
+  const gitStatusQuery = trpc.git.getStatus.useQuery(repository?.path ?? "", {
+    enabled: shouldGetStatus && !!repository,
+  })
+
+  // Handle git status query results
+  React.useEffect(() => {
+    if (gitStatusQuery.data && shouldGetStatus) {
+      const data = gitStatusQuery.data
       const statusText = `Git Status:
 Modified: ${data.modified?.length || 0} files
 Staged: ${data.staged?.length || 0} files  
 Untracked: ${data.untracked?.length || 0} files
-Deleted: ${data.deleted?.length || 0} files
-
-Current branch: ${data.current || "unknown"}`
+Deleted: ${data.deleted?.length || 0} files`
       alert(statusText)
-    },
-    onError: (error) => {
-      alert(`Failed to get git status: ${error.message}`)
-    },
-  })
+      setShouldGetStatus(false)
+    }
+    if (gitStatusQuery.error && shouldGetStatus) {
+      alert(`Failed to get git status: ${gitStatusQuery.error.message}`)
+      setShouldGetStatus(false)
+    }
+  }, [gitStatusQuery.data, gitStatusQuery.error, shouldGetStatus])
 
   const handleOpenRepository = () => {
     openRepositoryMutation.mutate()
@@ -51,7 +58,7 @@ Current branch: ${data.current || "unknown"}`
 
   const handleGetGitStatus = () => {
     if (repository) {
-      gitStatusMutation.mutate(repository.path)
+      setShouldGetStatus(true)
     } else {
       alert("No repository selected. Please open a repository first.")
     }
@@ -229,7 +236,11 @@ function ChangesView({
   }))
 
   // Create a set of all unstaged files to avoid duplicates
-  const unstagedFileMap = new Map()
+  const unstagedFileMap = new Map<string, {
+    file: string
+    status: "modified" | "untracked" | "deleted"
+    isPartiallyStaged: boolean
+  }>()
 
   // Add modified files
   ;(status?.modified || []).forEach((f) => {
@@ -321,7 +332,7 @@ function ChangesView({
                         setSelectedFile({ file, staged: true })
                         setSelectedView("file")
                       }}
-                      onKeyDown={(e) => {
+                      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
                           setSelectedFile({ file, staged: true })
@@ -330,7 +341,7 @@ function ChangesView({
                       }}
                       role="button"
                       tabIndex={0}
-                      onContextMenu={async (e) => {
+                      onContextMenu={async (e: React.MouseEvent<HTMLDivElement>) => {
                         e.preventDefault()
 
                         const action = await window.electronAPI.showContextMenu(
@@ -364,7 +375,7 @@ function ChangesView({
                       </div>
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation()
                           handleUnstageFile(file)
                         }}
@@ -405,7 +416,7 @@ function ChangesView({
                         setSelectedFile({ file, staged: false })
                         setSelectedView("file")
                       }}
-                      onKeyDown={(e) => {
+                      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
                           setSelectedFile({ file, staged: false })
@@ -414,7 +425,7 @@ function ChangesView({
                       }}
                       role="button"
                       tabIndex={0}
-                      onContextMenu={async (e) => {
+                      onContextMenu={async (e: React.MouseEvent<HTMLDivElement>) => {
                         e.preventDefault()
 
                         const menuItems = [
@@ -479,7 +490,7 @@ function ChangesView({
                       </div>
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation()
                           handleStageFile(file)
                         }}

@@ -2,7 +2,7 @@ import path from "node:path"
 import { BrowserWindow, Menu, ipcMain } from "electron"
 
 // Global reference to main window
-let mainWindow = null
+let mainWindow: BrowserWindow | null = null
 
 const createWindow = () => {
   // Create the browser window.
@@ -73,11 +73,16 @@ ipcMain.handle("create-new-tab", () => {
 })
 
 // Handle context menu
-ipcMain.handle("show-context-menu", async (event, menuItems) => {
+ipcMain.handle("show-context-menu", async (event, menuItems: Array<{
+  label: string
+  action: string
+  enabled?: boolean
+  type?: "normal" | "separator"
+}>) => {
   return new Promise((resolve) => {
-    const template = menuItems.map((item) => {
+    const template = menuItems.map((item): Electron.MenuItemConstructorOptions => {
       if (item.type === "separator") {
-        return { type: "separator" }
+        return { type: "separator" as const }
       }
 
       return {
@@ -92,13 +97,18 @@ ipcMain.handle("show-context-menu", async (event, menuItems) => {
 
     const menu = Menu.buildFromTemplate(template)
 
-    menu.popup({
-      window: BrowserWindow.fromWebContents(event.sender),
-      callback: () => {
-        // Resolve with null if menu is closed without clicking
-        resolve(null)
-      },
-    })
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    if (senderWindow) {
+      menu.popup({
+        window: senderWindow,
+        callback: () => {
+          // Resolve with null if menu is closed without clicking
+          resolve(null)
+        },
+      })
+    } else {
+      resolve(null)
+    }
   })
 })
 

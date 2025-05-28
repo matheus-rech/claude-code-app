@@ -47,15 +47,24 @@ export function preloadHighlighter() {
   }, 100)
 }
 
-export interface ProcessedDiffFile extends File {
+export interface ProcessedDiffFile {
+  from?: string
+  to?: string
+  deletions?: number
+  additions?: number
   chunks: ProcessedChunk[]
 }
 
-export interface ProcessedChunk extends Chunk {
+export interface ProcessedChunk {
+  content: string
   changes: ProcessedChange[]
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
 }
 
-export interface ProcessedChange extends Change {
+export type ProcessedChange = {
   tokens?: Array<{
     content: string
     color?: string
@@ -63,7 +72,7 @@ export interface ProcessedChange extends Change {
     isWordDiff?: boolean
     diffType?: "added" | "removed"
   }>
-}
+} & Change
 
 function getLanguageFromFilename(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase()
@@ -215,7 +224,10 @@ export async function processDiff(
             processedChanges.push({
               ...change,
               tokens: mergeHighlightingWithWordDiff(
-                oldHighlighted[0] || [],
+                oldHighlighted[0]?.map(t => ({
+                  ...t,
+                  fontStyle: t.fontStyle ? String(t.fontStyle) : undefined
+                })) || [],
                 oldTokens,
               ),
             })
@@ -223,7 +235,10 @@ export async function processDiff(
             processedChanges.push({
               ...nextChange,
               tokens: mergeHighlightingWithWordDiff(
-                newHighlighted[0] || [],
+                newHighlighted[0]?.map(t => ({
+                  ...t,
+                  fontStyle: t.fontStyle ? String(t.fontStyle) : undefined
+                })) || [],
                 newTokens,
               ),
             })
@@ -238,7 +253,10 @@ export async function processDiff(
             )
             processedChanges.push({
               ...change,
-              tokens: highlighted[0] || [],
+              tokens: highlighted[0]?.map(token => ({
+                ...token,
+                fontStyle: token.fontStyle ? String(token.fontStyle) : undefined
+              })) || [],
             })
             i++
           }
@@ -249,7 +267,10 @@ export async function processDiff(
           const highlighted = await highlightCode(content, language, theme)
           processedChanges.push({
             ...change,
-            tokens: highlighted[0] || [],
+            tokens: highlighted[0]?.map(token => ({
+              ...token,
+              fontStyle: token.fontStyle ? String(token.fontStyle) : undefined
+            })) || [],
           })
           i++
         }
@@ -262,9 +283,12 @@ export async function processDiff(
     }
 
     processedFiles.push({
-      ...file,
+      from: file.from,
+      to: file.to,
+      deletions: file.deletions,
+      additions: file.additions,
       chunks: processedChunks,
-    })
+    } as ProcessedDiffFile)
   }
 
   return processedFiles

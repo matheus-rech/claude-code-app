@@ -9,7 +9,7 @@ const router = t.router
 const procedure = t.procedure
 
 // Session management
-let currentSessionId = null
+let currentSessionId: string | null = null
 
 const appRouter = router({
   git: router({

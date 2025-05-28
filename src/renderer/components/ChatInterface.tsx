@@ -40,7 +40,14 @@ export default function ChatInterface({
 
   // Set up real-time message listener
   useEffect(() => {
-    const handleMessage = (event: any, message: any) => {
+    const handleMessage = (
+      event: unknown,
+      message: {
+        type: string
+        content: string
+        timestamp: string | number | Date
+      },
+    ) => {
       console.log("Received IPC message:", message)
       // Add the real-time message immediately
       const newMessage: Message = {
@@ -225,7 +232,7 @@ export default function ChatInterface({
         <div className="flex space-x-2">
           <textarea
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask Claude Code anything..."
             className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none"

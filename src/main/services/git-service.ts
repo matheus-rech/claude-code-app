@@ -1,12 +1,12 @@
 import fs from "node:fs"
 import path from "node:path"
-import { simpleGit } from "simple-git"
+import { simpleGit, SimpleGit } from "simple-git"
 
 class GitService {
-  private git = null
-  private currentRepoPath = null
+  private git: SimpleGit | null = null
+  private currentRepoPath: string | null = null
 
-  async openRepository(repoPath) {
+  async openRepository(repoPath: string) {
     if (!fs.existsSync(repoPath)) {
       throw new Error(`Repository path does not exist: ${repoPath}`)
     }
@@ -23,7 +23,7 @@ class GitService {
     return { path: repoPath, name }
   }
 
-  async getStatus(repoPath) {
+  async getStatus(repoPath: string) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }
@@ -35,9 +35,9 @@ class GitService {
     const status = await this.git.status()
 
     // Use status.files for more accurate staging information
-    const staged = []
-    const modified = []
-    const deleted = []
+    const staged: string[] = []
+    const modified: string[] = []
+    const deleted: string[] = []
 
     status.files.forEach((file) => {
       // Check if file has staged changes (index status)
@@ -63,7 +63,7 @@ class GitService {
     }
   }
 
-  async stageFile(repoPath, filePath) {
+  async stageFile(repoPath: string, filePath: string) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }
@@ -75,7 +75,7 @@ class GitService {
     await this.git.add(filePath)
   }
 
-  async unstageFile(repoPath, filePath) {
+  async unstageFile(repoPath: string, filePath: string) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }
@@ -87,7 +87,7 @@ class GitService {
     await this.git.reset(["HEAD", filePath])
   }
 
-  async commit(repoPath, message) {
+  async commit(repoPath: string, message: string) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }
@@ -99,7 +99,7 @@ class GitService {
     await this.git.commit(message)
   }
 
-  async getBranches(repoPath) {
+  async getBranches(repoPath: string) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }
@@ -115,7 +115,7 @@ class GitService {
     }
   }
 
-  async resetFile(repoPath, filePath) {
+  async resetFile(repoPath: string, filePath: string) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }
@@ -142,7 +142,7 @@ class GitService {
     await this.git.checkout(["HEAD", "--", filePath])
   }
 
-  async getFileDiff(repoPath, filePath, staged = false) {
+  async getFileDiff(repoPath: string, filePath: string, staged = false) {
     if (!this.git || this.currentRepoPath !== repoPath) {
       await this.openRepository(repoPath)
     }

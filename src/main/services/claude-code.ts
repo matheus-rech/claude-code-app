@@ -2,10 +2,68 @@ import { spawn } from "node:child_process"
 import { EventEmitter } from "node:events"
 import { BrowserWindow } from "electron"
 
+// Type definitions
+interface ExecuteOptions {
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+interface ExecuteResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+interface ClaudeMessage {
+  type: 'system' | 'assistant' | 'user';
+  content: string;
+  timestamp: string;
+}
+
+interface ClaudeJsonMessage {
+  type: string;
+  subtype?: string;
+  session_id?: string;
+  tools?: any[];
+  message?: {
+    content?: any[] | string;
+  };
+  duration_ms?: number;
+  num_turns?: number;
+  cost_usd?: number;
+  name?: string;
+  input?: Record<string, any>;
+}
+
+interface ClaudeFinalResult {
+  type: string;
+  result?: string;
+  session_id: string;
+  num_turns: number;
+  is_error: boolean;
+  cost_usd: number;
+  duration_ms: number;
+  duration_api_ms: number;
+}
+
+interface ClaudeCodeResponse {
+  success: boolean;
+  message?: ClaudeFinalResult;
+  content?: ClaudeMessage[];
+  sessionId?: string | null;
+  allMessages?: ClaudeMessage[];
+  error?: {
+    code: string;
+    message: string;
+    details: any;
+  };
+  exitCode?: number;
+}
+
 /**
  * Execute a command and return the result
  */
-async function executeCommand(command, options = {}, emitter = null) {
+async function executeCommand(command: string, options: ExecuteOptions = {}, emitter: EventEmitter | null = null): Promise<ExecuteResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("sh", ["-c", command], {
       cwd: options.cwd || process.cwd(),
@@ -81,8 +139,17 @@ async function executeCommand(command, options = {}, emitter = null) {
 /**
  * Main ClaudeCode class for interacting with Claude CLI
  */
+interface ClaudeCodeOptions {
+  claudeCodePath?: string;
+  workingDirectory?: string;
+  verbose?: boolean;
+  model?: string;
+}
+
 class ClaudeCode extends EventEmitter {
-  constructor(options = {}) {
+  private options: ClaudeCodeOptions;
+
+  constructor(options: ClaudeCodeOptions = {}) {
     super()
     this.options = {
       claudeCodePath: "npx @anthropic-ai/claude-code",
@@ -92,8 +159,8 @@ class ClaudeCode extends EventEmitter {
     }
   }
 
-  defaultArgs() {
-    const args = []
+  defaultArgs(): string[] {
+    const args: string[] = []
 
     if (this.options.verbose) {
       args.push("--verbose")
@@ -109,12 +176,12 @@ class ClaudeCode extends EventEmitter {
     return args
   }
 
-  async chat(promptInput, sessionId = null) {
+  async chat(promptInput: string | { prompt: string; systemPrompt?: string }, sessionId: string | null = null): Promise<ClaudeCodeResponse> {
     try {
       const prompt =
         typeof promptInput === "string" ? promptInput : promptInput.prompt
-      const systemPrompt =
-        typeof promptInput === "object" ? promptInput.systemPrompt : null
+      // const systemPrompt =
+      //   typeof promptInput === "object" ? promptInput.systemPrompt : null
 
       const args = [...this.defaultArgs()]
       args.push("--print")
@@ -135,12 +202,12 @@ class ClaudeCode extends EventEmitter {
       }
 
       // Set up real-time message streaming
-      const allMessages = []
-      let finalResult = null
-      let capturedSessionId = null
+      const allMessages: ClaudeMessage[] = []
+      let finalResult: ClaudeFinalResult | null = null
+      let capturedSessionId: string | null = null
 
       // Process JSON chunks as they arrive
-      this.on("json", (json) => {
+      this.on("json", (json: ClaudeJsonMessage) => {
         // Store session ID from system init
         if (
           json.type === "system" &&
@@ -148,7 +215,7 @@ class ClaudeCode extends EventEmitter {
           json.session_id
         ) {
           capturedSessionId = json.session_id
-          const message = {
+          const message: ClaudeMessage = {
             type: "system",
             content: `🔧 Claude Code initialized with ${json.tools?.length || 0} tools available`,
             timestamp: new Date().toISOString(),
@@ -173,7 +240,7 @@ class ClaudeCode extends EventEmitter {
           if (Array.isArray(json.message.content)) {
             for (const contentItem of json.message.content) {
               if (contentItem.type === "text" && contentItem.text) {
-                const message = {
+                const message: ClaudeMessage = {
                   type: "assistant",
                   content: contentItem.text,
                   timestamp: new Date().toISOString(),
@@ -188,7 +255,7 @@ class ClaudeCode extends EventEmitter {
                   )
                 }
               } else if (contentItem.type === "tool_use") {
-                const message = {
+                const message: ClaudeMessage = {
                   type: "system",
                   content: `🔧 Using tool: ${contentItem.name}${contentItem.input ? ` with ${Object.keys(contentItem.input).join(", ")}` : ""}`,
                   timestamp: new Date().toISOString(),
@@ -217,7 +284,7 @@ class ClaudeCode extends EventEmitter {
                     ? contentItem.content.substring(0, 100) +
                       (contentItem.content.length > 100 ? "..." : "")
                     : "[Tool result]"
-                const message = {
+                const message: ClaudeMessage = {
                   type: "system",
                   content: `📄 Tool result: ${preview}`,
                   timestamp: new Date().toISOString(),
@@ -238,8 +305,8 @@ class ClaudeCode extends EventEmitter {
 
         // Store final result for session info
         else if (json.type === "result") {
-          finalResult = json
-          const message = {
+          finalResult = json as ClaudeFinalResult
+          const message: ClaudeMessage = {
             type: "system",
             content: `✅ Completed in ${json.duration_ms}ms (${json.num_turns} turns, $${json.cost_usd?.toFixed(4) || "0.0000"})`,
             timestamp: new Date().toISOString(),
@@ -256,7 +323,7 @@ class ClaudeCode extends EventEmitter {
         }
       })
 
-      const result = await executeCommand(
+      const result: ExecuteResult = await executeCommand(
         command,
         {
           cwd: this.options.workingDirectory,
@@ -299,7 +366,7 @@ class ClaudeCode extends EventEmitter {
         },
         exitCode: result.exitCode,
       }
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: {
@@ -311,12 +378,12 @@ class ClaudeCode extends EventEmitter {
     }
   }
 
-  async version() {
+  async version(): Promise<string> {
     const response = await this.runCommand(["--version"])
-    return response.success ? response.message.result.trim() : "unknown"
+    return response.success && response.message ? response.message.result?.trim() || "unknown" : "unknown"
   }
 
-  async runCommand(args) {
+  async runCommand(args: string[]): Promise<ClaudeCodeResponse> {
     try {
       const command = `${this.options.claudeCodePath} ${args.join(" ")}`
 
@@ -324,7 +391,7 @@ class ClaudeCode extends EventEmitter {
         console.log("Executing command:", command)
       }
 
-      const result = await executeCommand(command, {
+      const result: ExecuteResult = await executeCommand(command, {
         cwd: this.options.workingDirectory,
       })
 
@@ -353,7 +420,7 @@ class ClaudeCode extends EventEmitter {
             : undefined,
         exitCode: result.exitCode,
       }
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: {

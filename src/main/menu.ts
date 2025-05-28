@@ -1,9 +1,9 @@
-import { BrowserWindow, Menu, app } from "electron"
+import { BrowserWindow, Menu, app, MenuItemConstructorOptions } from "electron"
 import { createNewTab } from "../main/window"
 
 // Set up application menu
 function createMenu() {
-  const template = [
+  const template: MenuItemConstructorOptions[] = [
     {
       label: "File",
       submenu: [
@@ -80,7 +80,7 @@ function createMenu() {
         {
           label: "Hide Others",
           accelerator: "Command+Shift+H",
-          role: "hideothers",
+          role: "hideOthers",
         },
         {
           label: "Show All",

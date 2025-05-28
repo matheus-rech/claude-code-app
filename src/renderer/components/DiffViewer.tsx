@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import {
   type ProcessedChange,
+  type ProcessedChunk,
   type ProcessedDiffFile,
   processDiff,
 } from "../utils/diff-processor"
@@ -171,11 +172,11 @@ function DiffLine({ change }: { change: ProcessedChange }) {
   const getLineNumbers = () => {
     switch (change.type) {
       case "add":
-        return { old: "", new: change.ln || "" }
+        return { old: "", new: String(change.ln || "") }
       case "del":
-        return { old: change.ln || "", new: "" }
+        return { old: String(change.ln || ""), new: "" }
       case "normal":
-        return { old: change.ln1 || "", new: change.ln2 || "" }
+        return { old: String(change.ln1 || ""), new: String(change.ln2 || "") }
       default:
         return { old: "", new: "" }
     }
