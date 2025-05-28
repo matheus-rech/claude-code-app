@@ -8,6 +8,10 @@ export interface ElectronAPI {
   };
   onClaudeCodeStream: (callback: (data: any) => void) => void;
   removeClaudeCodeStreamListener: (callback: (data: any) => void) => void;
+  ipcRenderer: {
+    on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
+    removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
+  };
 }
 
 // Create the API object
@@ -28,6 +32,15 @@ const electronAPI: ElectronAPI = {
   
   removeClaudeCodeStreamListener: (callback: (data: any) => void) => {
     ipcRenderer.removeListener('claude-code-stream', callback);
+  },
+  
+  ipcRenderer: {
+    on: (channel: string, listener: (event: any, ...args: any[]) => void) => {
+      ipcRenderer.on(channel, listener);
+    },
+    removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => {
+      ipcRenderer.removeListener(channel, listener);
+    }
   }
 };
 

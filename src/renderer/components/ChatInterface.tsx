@@ -34,83 +34,33 @@ export default function ChatInterface({ onClose, repository }: ChatInterfaceProp
     scrollToBottom();
   }, [messages]);
 
-  // Set up streaming listener
+  // Set up real-time message listener
   useEffect(() => {
-    // Check if streaming API is available
-    if (!window.electronAPI?.onClaudeCodeStream) {
-      console.warn('Streaming API not available, falling back to basic mode');
-      return;
-    }
-
-    const handleStream = (data: any) => {
-      if (data.type === 'json') {
-        // Handle streaming JSON
-        const json = data.data;
-        
-        if (json.type === 'system' && json.subtype === 'init') {
-          // Save session ID
-          setSessionId(json.session_id);
-        } else if (json.type === 'assistant' && json.message) {
-          // Extract assistant content and append it
-          if (json.message.content && Array.isArray(json.message.content)) {
-            for (const contentItem of json.message.content) {
-              if (contentItem.type === 'text' && contentItem.text) {
-                setMessages(prev => {
-                  const lastMsg = prev[prev.length - 1];
-                  if (lastMsg && lastMsg.streaming) {
-                    // Update streaming message
-                    return prev.map((msg, idx) => 
-                      idx === prev.length - 1 
-                        ? { ...msg, content: msg.content + contentItem.text }
-                        : msg
-                    );
-                  }
-                  return prev;
-                });
-              }
-            }
-          }
-        } else if (json.type === 'result') {
-          // Complete the streaming
-          setIsStreaming(false);
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.streaming 
-                ? { ...msg, streaming: false }
-                : msg
-            )
-          );
-        }
-      } else if (data.type === 'complete') {
-        // Final completion
-        setIsStreaming(false);
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.streaming 
-              ? { ...msg, streaming: false }
-              : msg
-          )
-        );
-      } else if (data.type === 'error') {
-        // Handle error
-        setIsStreaming(false);
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            role: 'system',
-            content: `Error: ${data.data.message}`,
-            timestamp: new Date(),
-          }
-        ]);
-      }
+    const handleMessage = (event: any, message: any) => {
+      console.log('Received IPC message:', message);
+      // Add the real-time message immediately
+      const newMessage: Message = {
+        id: `${Date.now()}-${Math.random()}`,
+        role: message.type === 'assistant' ? 'assistant' : 'system',
+        content: message.content,
+        timestamp: new Date(message.timestamp),
+      };
+      
+      setMessages(prev => {
+        // Remove any streaming/loading messages and add the new one
+        const filtered = prev.filter(msg => !msg.streaming);
+        return [...filtered, newMessage];
+      });
     };
 
-    window.electronAPI.onClaudeCodeStream(handleStream);
+    // Listen for real-time claude-code messages
+    if (window.electronAPI?.ipcRenderer) {
+      window.electronAPI.ipcRenderer.on('claude-code-message', handleMessage);
+    }
 
     return () => {
-      if (window.electronAPI?.removeClaudeCodeStreamListener) {
-        window.electronAPI.removeClaudeCodeStreamListener(handleStream);
+      if (window.electronAPI?.ipcRenderer) {
+        window.electronAPI.ipcRenderer.removeListener('claude-code-message', handleMessage);
       }
     };
   }, []);
@@ -123,35 +73,15 @@ export default function ChatInterface({ onClose, repository }: ChatInterfaceProp
         setSessionId(response.sessionId);
       }
       
-      // Remove the streaming placeholder
+      // Since we're using real-time streaming, we don't need to add messages here
+      // The real-time listener will handle all the message updates
+      // Just remove any streaming placeholder
       setMessages(prev => prev.filter(msg => !msg.streaming));
-      
-      // Add all the messages from allMessages if available
-      if (response.allMessages && Array.isArray(response.allMessages)) {
-        const newMessages = response.allMessages.map((msg: any, index: number) => ({
-          id: `${Date.now()}-${index}`,
-          role: msg.type === 'assistant' ? 'assistant' : 'system',
-          content: msg.content,
-          timestamp: new Date(msg.timestamp || Date.now()),
-        }));
-        setMessages(prev => [...prev, ...newMessages]);
-      } else {
-        // Fallback to single message
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            role: 'assistant',
-            content: typeof response.content === 'string' ? response.content : JSON.stringify(response.content, null, 2),
-            timestamp: new Date(),
-          }
-        ]);
-      }
     },
     onError: (error) => {
       setIsStreaming(false);
       setMessages(prev => [
-        ...prev,
+        ...prev.filter(msg => !msg.streaming),
         {
           id: Date.now().toString(),
           role: 'system',
@@ -175,32 +105,25 @@ export default function ChatInterface({ onClose, repository }: ChatInterfaceProp
     // Add user message
     setMessages(prev => [...prev, userMessage]);
     
-    // Add streaming placeholder for assistant response
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
+    // Add a loading indicator
+    const loadingMessage: Message = {
+      id: `${Date.now()}-loading`,
       role: 'assistant',
-      content: '',
+      content: 'Thinking...',
       timestamp: new Date(),
-      streaming: true,
+      streaming: true
     };
-    setMessages(prev => [...prev, assistantMessage]);
+    setMessages(prev => [...prev, loadingMessage]);
 
     setInputValue('');
     setIsStreaming(true);
 
     // Send the message
-    const mutationData: any = {
+    sendMessageMutation.mutate({
       message: userMessage.content,
       verbose: true,
       repoPath: repository?.path
-    };
-    
-    // Only include sessionId if it's not null
-    if (sessionId) {
-      mutationData.sessionId = sessionId;
-    }
-    
-    sendMessageMutation.mutate(mutationData);
+    });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -256,7 +179,7 @@ export default function ChatInterface({ onClose, repository }: ChatInterfaceProp
                   message.role === 'user'
                     ? 'bg-blue-500 dark:bg-blue-600 text-white'
                     : message.role === 'system'
-                    ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                    ? 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                 }`}
               >

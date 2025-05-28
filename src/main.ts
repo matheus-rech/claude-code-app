@@ -125,8 +125,10 @@ class ClaudeCode extends EventEmitter {
       args.push('--print');
       args.push('--output-format', 'stream-json');
       
-      if (sessionId) {
+      if (sessionId && sessionId !== 'persistent') {
         args.push('--resume', sessionId);
+      } else if (sessionId === 'persistent') {
+        args.push('--resume', 'persistent');
       }
       
       // Use piped input instead of command argument to avoid hanging
@@ -137,85 +139,109 @@ class ClaudeCode extends EventEmitter {
         console.log('Executing command:', command);
       }
       
+      // Set up real-time message streaming
+      let allMessages = [];
+      let finalResult = null;
+      let capturedSessionId = null;
+      
+      // Process JSON chunks as they arrive
+      this.on('json', (json) => {
+        // Store session ID from system init
+        if (json.type === 'system' && json.subtype === 'init' && json.session_id) {
+          capturedSessionId = json.session_id;
+          currentSessionId = json.session_id; // Update global session
+          const message = {
+            type: 'system',
+            content: `🔧 Claude Code initialized with ${json.tools?.length || 0} tools available`,
+            timestamp: new Date().toISOString()
+          };
+          allMessages.push(message);
+          
+          // Send immediately via IPC
+          if (BrowserWindow.getAllWindows().length > 0) {
+            BrowserWindow.getAllWindows()[0].webContents.send('claude-code-message', message);
+          }
+        }
+        
+        // Handle assistant messages
+        else if (json.type === 'assistant' && json.message && json.message.content) {
+          if (Array.isArray(json.message.content)) {
+            for (const contentItem of json.message.content) {
+              if (contentItem.type === 'text' && contentItem.text) {
+                const message = {
+                  type: 'assistant',
+                  content: contentItem.text,
+                  timestamp: new Date().toISOString()
+                };
+                allMessages.push(message);
+                
+                // Send immediately via IPC
+                if (BrowserWindow.getAllWindows().length > 0) {
+                  BrowserWindow.getAllWindows()[0].webContents.send('claude-code-message', message);
+                }
+              } else if (contentItem.type === 'tool_use') {
+                const message = {
+                  type: 'system',
+                  content: `🔧 Using tool: ${contentItem.name}${contentItem.input ? ` with ${Object.keys(contentItem.input).join(', ')}` : ''}`,
+                  timestamp: new Date().toISOString()
+                };
+                allMessages.push(message);
+                
+                // Send immediately via IPC
+                if (BrowserWindow.getAllWindows().length > 0) {
+                  BrowserWindow.getAllWindows()[0].webContents.send('claude-code-message', message);
+                }
+              }
+            }
+          }
+        }
+        
+        // Handle tool results
+        else if (json.type === 'user' && json.message && json.message.content) {
+          if (Array.isArray(json.message.content)) {
+            for (const contentItem of json.message.content) {
+              if (contentItem.type === 'tool_result' && contentItem.content) {
+                const preview = typeof contentItem.content === 'string' 
+                  ? contentItem.content.substring(0, 100) + (contentItem.content.length > 100 ? '...' : '')
+                  : '[Tool result]';
+                const message = {
+                  type: 'system',
+                  content: `📄 Tool result: ${preview}`,
+                  timestamp: new Date().toISOString()
+                };
+                allMessages.push(message);
+                
+                // Send immediately via IPC
+                if (BrowserWindow.getAllWindows().length > 0) {
+                  BrowserWindow.getAllWindows()[0].webContents.send('claude-code-message', message);
+                }
+              }
+            }
+          }
+        }
+        
+        // Store final result for session info
+        else if (json.type === 'result') {
+          finalResult = json;
+          const message = {
+            type: 'system',
+            content: `✅ Completed in ${json.duration_ms}ms (${json.num_turns} turns, $${json.cost_usd?.toFixed(4) || '0.0000'})`,
+            timestamp: new Date().toISOString()
+          };
+          allMessages.push(message);
+          
+          // Send immediately via IPC
+          if (BrowserWindow.getAllWindows().length > 0) {
+            BrowserWindow.getAllWindows()[0].webContents.send('claude-code-message', message);
+          }
+        }
+      });
+      
       const result = await executeCommand(command, {
         cwd: this.options.workingDirectory,
       }, this);
       
       if (result.exitCode === 0) {
-        // Parse streaming JSON lines and collect all messages
-        let allMessages = [];
-        let finalResult = null;
-        let sessionId = null;
-        
-        const lines = result.stdout.split('\n');
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              const json = JSON.parse(line.trim());
-              
-              // Store session ID from system init
-              if (json.type === 'system' && json.subtype === 'init' && json.session_id) {
-                sessionId = json.session_id;
-                allMessages.push({
-                  type: 'system',
-                  content: `🔧 Claude Code initialized with ${json.tools?.length || 0} tools available`,
-                  timestamp: new Date().toISOString()
-                });
-              }
-              
-              // Handle assistant messages
-              else if (json.type === 'assistant' && json.message && json.message.content) {
-                if (Array.isArray(json.message.content)) {
-                  for (const contentItem of json.message.content) {
-                    if (contentItem.type === 'text' && contentItem.text) {
-                      allMessages.push({
-                        type: 'assistant',
-                        content: contentItem.text,
-                        timestamp: new Date().toISOString()
-                      });
-                    } else if (contentItem.type === 'tool_use') {
-                      allMessages.push({
-                        type: 'system',
-                        content: `🔧 Using tool: ${contentItem.name}${contentItem.input ? ` with ${Object.keys(contentItem.input).join(', ')}` : ''}`,
-                        timestamp: new Date().toISOString()
-                      });
-                    }
-                  }
-                }
-              }
-              
-              // Handle tool results
-              else if (json.type === 'user' && json.message && json.message.content) {
-                if (Array.isArray(json.message.content)) {
-                  for (const contentItem of json.message.content) {
-                    if (contentItem.type === 'tool_result' && contentItem.content) {
-                      const preview = typeof contentItem.content === 'string' 
-                        ? contentItem.content.substring(0, 100) + (contentItem.content.length > 100 ? '...' : '')
-                        : '[Tool result]';
-                      allMessages.push({
-                        type: 'system',
-                        content: `📄 Tool result: ${preview}`,
-                        timestamp: new Date().toISOString()
-                      });
-                    }
-                  }
-                }
-              }
-              
-              // Store final result for session info
-              else if (json.type === 'result') {
-                finalResult = json;
-                allMessages.push({
-                  type: 'system',
-                  content: `✅ Completed in ${json.duration_ms}ms (${json.num_turns} turns, $${json.cost_usd?.toFixed(4) || '0.0000'})`,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            } catch (e) {
-              // Skip invalid JSON lines
-            }
-          }
-        }
         
         console.log('=== CLAUDE CODE RESPONSE ===');
         console.log('result.stdout:', result.stdout);
@@ -227,7 +253,7 @@ class ClaudeCode extends EventEmitter {
           message: finalResult || {
             type: 'text',
             result: allMessages.length > 0 ? 'Multiple messages processed' : result.stdout,
-            session_id: sessionId || 'unknown',
+            session_id: capturedSessionId || 'unknown',
             num_turns: 1,
             is_error: false,
             cost_usd: 0,
@@ -235,7 +261,7 @@ class ClaudeCode extends EventEmitter {
             duration_api_ms: 0,
           },
           content: allMessages,
-          sessionId: sessionId,
+          sessionId: capturedSessionId,
           allMessages: allMessages,
         };
       } else {
@@ -314,6 +340,9 @@ class ClaudeCode extends EventEmitter {
 if (started) {
   app.quit();
 }
+
+// Session management
+let currentSessionId = null;
 
 // Git Service
 class GitService {
@@ -558,7 +587,6 @@ const appRouter = router({
     sendMessage: procedure
       .input(z.object({
         message: z.string(),
-        sessionId: z.string().nullable().optional(),
         verbose: z.boolean().optional().default(false),
         repoPath: z.string().optional()
       }))
@@ -569,13 +597,18 @@ const appRouter = router({
           workingDirectory: workingDir
         });
 
-        // For now, fall back to synchronous response to fix the crash
-        const response = await claudeCode.chat(input.message, input.sessionId);
+        // Use the current session ID, or null for the first message
+        const response = await claudeCode.chat(input.message, currentSessionId);
         
         if (response.success) {
+          // Update the session ID if we got a new one
+          if (response.sessionId) {
+            currentSessionId = response.sessionId;
+          }
+          
           return {
             content: response.content || response.message?.result || 'No response',
-            sessionId: response.message?.session_id,
+            sessionId: currentSessionId,
             success: true
           };
         } else {
