@@ -224,9 +224,9 @@ export async function processDiff(
             processedChanges.push({
               ...change,
               tokens: mergeHighlightingWithWordDiff(
-                oldHighlighted[0]?.map(t => ({
+                oldHighlighted[0]?.map((t) => ({
                   ...t,
-                  fontStyle: t.fontStyle ? String(t.fontStyle) : undefined
+                  fontStyle: t.fontStyle ? String(t.fontStyle) : undefined,
                 })) || [],
                 oldTokens,
               ),
@@ -235,9 +235,9 @@ export async function processDiff(
             processedChanges.push({
               ...nextChange,
               tokens: mergeHighlightingWithWordDiff(
-                newHighlighted[0]?.map(t => ({
+                newHighlighted[0]?.map((t) => ({
                   ...t,
-                  fontStyle: t.fontStyle ? String(t.fontStyle) : undefined
+                  fontStyle: t.fontStyle ? String(t.fontStyle) : undefined,
                 })) || [],
                 newTokens,
               ),
@@ -253,10 +253,13 @@ export async function processDiff(
             )
             processedChanges.push({
               ...change,
-              tokens: highlighted[0]?.map(token => ({
-                ...token,
-                fontStyle: token.fontStyle ? String(token.fontStyle) : undefined
-              })) || [],
+              tokens:
+                highlighted[0]?.map((token) => ({
+                  ...token,
+                  fontStyle: token.fontStyle
+                    ? String(token.fontStyle)
+                    : undefined,
+                })) || [],
             })
             i++
           }
@@ -267,10 +270,13 @@ export async function processDiff(
           const highlighted = await highlightCode(content, language, theme)
           processedChanges.push({
             ...change,
-            tokens: highlighted[0]?.map(token => ({
-              ...token,
-              fontStyle: token.fontStyle ? String(token.fontStyle) : undefined
-            })) || [],
+            tokens:
+              highlighted[0]?.map((token) => ({
+                ...token,
+                fontStyle: token.fontStyle
+                  ? String(token.fontStyle)
+                  : undefined,
+              })) || [],
           })
           i++
         }

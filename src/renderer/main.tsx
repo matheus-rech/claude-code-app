@@ -1,7 +1,7 @@
 import "./index.css"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { observable } from "@trpc/server/observable"
 import { TRPCClientError } from "@trpc/client"
+import { observable } from "@trpc/server/observable"
 import React from "react"
 import { createRoot } from "react-dom/client"
 import App from "./App"
@@ -45,7 +45,11 @@ const trpcClient = trpc.createClient({
                 observer.error(TRPCClientError.from(error))
               })
           } else {
-            observer.error(TRPCClientError.from(new Error(`Unsupported operation type: ${type}`)))
+            observer.error(
+              TRPCClientError.from(
+                new Error(`Unsupported operation type: ${type}`),
+              ),
+            )
           }
         })
       }

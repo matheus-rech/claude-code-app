@@ -148,15 +148,13 @@ export default function ChatInterface({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+    <div className="flex flex-col h-full bg-mantle">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 border-b border-surface-0">
         <div className="flex items-center space-x-2">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            🤖 Claude Code
-          </h3>
+          <h3 className="text-lg font-semibold text-text">🤖 Claude Code</h3>
           {sessionId && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+            <span className="text-xs text-subtext-0 font-mono">
               Session: {sessionId.slice(0, 8)}...
             </span>
           )}
@@ -164,7 +162,7 @@ export default function ChatInterface({
         <button
           type="button"
           onClick={onClose}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          className="text-subtext-0 hocus:text-subtext-1"
         >
           ✕
         </button>
@@ -173,7 +171,7 @@ export default function ChatInterface({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+          <div className="text-center text-subtext-0 mt-8">
             <div className="text-2xl mb-2">🤖</div>
             <p>Start a conversation with Claude Code</p>
             <p className="text-sm mt-2">
@@ -181,7 +179,7 @@ export default function ChatInterface({
               development
             </p>
             {repository && (
-              <p className="text-xs mt-2 font-mono text-blue-600 dark:text-blue-400">
+              <p className="text-xs mt-2 font-mono text-blue">
                 Working in: {repository.name}
               </p>
             )}
@@ -195,10 +193,10 @@ export default function ChatInterface({
               <div
                 className={`max-w-3/4 p-3 rounded-lg ${
                   message.role === "user"
-                    ? "bg-blue-500 dark:bg-blue-600 text-white"
+                    ? "bg-blue text-white"
                     : message.role === "system"
-                      ? "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      ? "bg-mantle text-subtext-0 border border-surface-0"
+                      : "bg-surface-0 text-text"
                 }`}
               >
                 <div className="whitespace-pre-wrap text-sm">
@@ -228,14 +226,16 @@ export default function ChatInterface({
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-surface-0">
         <div className="flex space-x-2">
           <textarea
             value={inputValue}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setInputValue(e.target.value)
+            }
             onKeyPress={handleKeyPress}
             placeholder="Ask Claude Code anything..."
-            className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none"
+            className="flex-1 p-3 border border-surface-1 rounded-lg bg-base text-text placeholder-subtext-0 resize-none"
             rows={2}
             disabled={isStreaming}
           />
@@ -243,7 +243,7 @@ export default function ChatInterface({
             type="button"
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isStreaming}
-            className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-blue text-white rounded-lg hocus:bg-blue/80 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isStreaming ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

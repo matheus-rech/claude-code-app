@@ -4,66 +4,70 @@ import { BrowserWindow } from "electron"
 
 // Type definitions
 interface ExecuteOptions {
-  cwd?: string;
-  env?: Record<string, string>;
+  cwd?: string
+  env?: Record<string, string>
 }
 
 interface ExecuteResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+  stdout: string
+  stderr: string
+  exitCode: number
 }
 
 interface ClaudeMessage {
-  type: 'system' | 'assistant' | 'user';
-  content: string;
-  timestamp: string;
+  type: "system" | "assistant" | "user"
+  content: string
+  timestamp: string
 }
 
 interface ClaudeJsonMessage {
-  type: string;
-  subtype?: string;
-  session_id?: string;
-  tools?: any[];
+  type: string
+  subtype?: string
+  session_id?: string
+  tools?: any[]
   message?: {
-    content?: any[] | string;
-  };
-  duration_ms?: number;
-  num_turns?: number;
-  cost_usd?: number;
-  name?: string;
-  input?: Record<string, any>;
+    content?: any[] | string
+  }
+  duration_ms?: number
+  num_turns?: number
+  cost_usd?: number
+  name?: string
+  input?: Record<string, any>
 }
 
 interface ClaudeFinalResult {
-  type: string;
-  result?: string;
-  session_id: string;
-  num_turns: number;
-  is_error: boolean;
-  cost_usd: number;
-  duration_ms: number;
-  duration_api_ms: number;
+  type: string
+  result?: string
+  session_id: string
+  num_turns: number
+  is_error: boolean
+  cost_usd: number
+  duration_ms: number
+  duration_api_ms: number
 }
 
 interface ClaudeCodeResponse {
-  success: boolean;
-  message?: ClaudeFinalResult;
-  content?: ClaudeMessage[];
-  sessionId?: string | null;
-  allMessages?: ClaudeMessage[];
+  success: boolean
+  message?: ClaudeFinalResult
+  content?: ClaudeMessage[]
+  sessionId?: string | null
+  allMessages?: ClaudeMessage[]
   error?: {
-    code: string;
-    message: string;
-    details: any;
-  };
-  exitCode?: number;
+    code: string
+    message: string
+    details: any
+  }
+  exitCode?: number
 }
 
 /**
  * Execute a command and return the result
  */
-async function executeCommand(command: string, options: ExecuteOptions = {}, emitter: EventEmitter | null = null): Promise<ExecuteResult> {
+async function executeCommand(
+  command: string,
+  options: ExecuteOptions = {},
+  emitter: EventEmitter | null = null,
+): Promise<ExecuteResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("sh", ["-c", command], {
       cwd: options.cwd || process.cwd(),
@@ -140,14 +144,14 @@ async function executeCommand(command: string, options: ExecuteOptions = {}, emi
  * Main ClaudeCode class for interacting with Claude CLI
  */
 interface ClaudeCodeOptions {
-  claudeCodePath?: string;
-  workingDirectory?: string;
-  verbose?: boolean;
-  model?: string;
+  claudeCodePath?: string
+  workingDirectory?: string
+  verbose?: boolean
+  model?: string
 }
 
 class ClaudeCode extends EventEmitter {
-  private options: ClaudeCodeOptions;
+  private options: ClaudeCodeOptions
 
   constructor(options: ClaudeCodeOptions = {}) {
     super()
@@ -176,7 +180,10 @@ class ClaudeCode extends EventEmitter {
     return args
   }
 
-  async chat(promptInput: string | { prompt: string; systemPrompt?: string }, sessionId: string | null = null): Promise<ClaudeCodeResponse> {
+  async chat(
+    promptInput: string | { prompt: string; systemPrompt?: string },
+    sessionId: string | null = null,
+  ): Promise<ClaudeCodeResponse> {
     try {
       const prompt =
         typeof promptInput === "string" ? promptInput : promptInput.prompt
@@ -380,7 +387,9 @@ class ClaudeCode extends EventEmitter {
 
   async version(): Promise<string> {
     const response = await this.runCommand(["--version"])
-    return response.success && response.message ? response.message.result?.trim() || "unknown" : "unknown"
+    return response.success && response.message
+      ? response.message.result?.trim() || "unknown"
+      : "unknown"
   }
 
   async runCommand(args: string[]): Promise<ClaudeCodeResponse> {

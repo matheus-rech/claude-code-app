@@ -73,43 +73,51 @@ ipcMain.handle("create-new-tab", () => {
 })
 
 // Handle context menu
-ipcMain.handle("show-context-menu", async (event, menuItems: Array<{
-  label: string
-  action: string
-  enabled?: boolean
-  type?: "normal" | "separator"
-}>) => {
-  return new Promise((resolve) => {
-    const template = menuItems.map((item): Electron.MenuItemConstructorOptions => {
-      if (item.type === "separator") {
-        return { type: "separator" as const }
-      }
+ipcMain.handle(
+  "show-context-menu",
+  async (
+    event,
+    menuItems: Array<{
+      label: string
+      action: string
+      enabled?: boolean
+      type?: "normal" | "separator"
+    }>,
+  ) => {
+    return new Promise((resolve) => {
+      const template = menuItems.map(
+        (item): Electron.MenuItemConstructorOptions => {
+          if (item.type === "separator") {
+            return { type: "separator" as const }
+          }
 
-      return {
-        label: item.label,
-        enabled: item.enabled !== false,
-        click: () => {
-          // Resolve the promise with the action when clicked
-          resolve(item.action)
+          return {
+            label: item.label,
+            enabled: item.enabled !== false,
+            click: () => {
+              // Resolve the promise with the action when clicked
+              resolve(item.action)
+            },
+          }
         },
+      )
+
+      const menu = Menu.buildFromTemplate(template)
+
+      const senderWindow = BrowserWindow.fromWebContents(event.sender)
+      if (senderWindow) {
+        menu.popup({
+          window: senderWindow,
+          callback: () => {
+            // Resolve with null if menu is closed without clicking
+            resolve(null)
+          },
+        })
+      } else {
+        resolve(null)
       }
     })
-
-    const menu = Menu.buildFromTemplate(template)
-
-    const senderWindow = BrowserWindow.fromWebContents(event.sender)
-    if (senderWindow) {
-      menu.popup({
-        window: senderWindow,
-        callback: () => {
-          // Resolve with null if menu is closed without clicking
-          resolve(null)
-        },
-      })
-    } else {
-      resolve(null)
-    }
-  })
-})
+  },
+)
 
 export { createWindow, createNewTab, mainWindow }

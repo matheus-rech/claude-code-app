@@ -1,5 +1,5 @@
 import { ipcMain } from "electron"
-import { appRouter, type AppRouter } from "../trpc/router"
+import { type AppRouter, appRouter } from "../trpc/router"
 
 function setupTrpcIpcHandler() {
   const caller = appRouter.createCaller({})

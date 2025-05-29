@@ -65,28 +65,28 @@ Deleted: ${data.deleted?.length || 0} files`
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-screen bg-base">
       <div
-        className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2"
+        className="bg-mantle border-b border-surface-0 px-4 py-2"
         style={{ paddingTop: "32px" }}
       >
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+          <h1 className="text-lg font-semibold text-text">
             {repository ? repository.name : "Git Tower Clone"}
           </h1>
         </div>
       </div>
 
       {repository && (
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-mantle border-b border-surface-0">
           <div className="flex">
             <button
               type="button"
               onClick={() => setCurrentView("changes")}
               className={`px-4 py-2 text-sm font-medium border-b-2 ${
                 currentView === "changes"
-                  ? "border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  ? "border-blue text-blue"
+                  : "border-transparent text-subtext-1 hocus:text-subtext-0"
               }`}
             >
               Changes
@@ -96,8 +96,8 @@ Deleted: ${data.deleted?.length || 0} files`
               onClick={() => setCurrentView("history")}
               className={`px-4 py-2 text-sm font-medium border-b-2 ${
                 currentView === "history"
-                  ? "border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400"
-                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  ? "border-blue text-blue"
+                  : "border-transparent text-subtext-1 hocus:text-subtext-0"
               }`}
             >
               History
@@ -110,17 +110,17 @@ Deleted: ${data.deleted?.length || 0} files`
         {!repository ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
+              <h2 className="text-xl font-semibold text-subtext-1 mb-2">
                 Welcome to Git Tower Clone
               </h2>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
+              <p className="text-subtext-0 mb-4">
                 Select a repository to get started
               </p>
               <button
                 type="button"
                 onClick={handleOpenRepository}
                 disabled={openRepositoryMutation.isPending}
-                className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 inline-block"
+                className="px-4 py-2 bg-blue text-crust rounded hocus:bg-sapphire disabled:opacity-50 inline-block"
               >
                 {openRepositoryMutation.isPending
                   ? "Opening..."
@@ -211,9 +211,7 @@ function ChangesView({
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">
-          Loading git status...
-        </div>
+        <div className="text-subtext-0">Loading git status...</div>
       </div>
     )
   }
@@ -221,9 +219,7 @@ function ChangesView({
   if (error) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-red-500 dark:text-red-400">
-          Error: {error.message}
-        </div>
+        <div className="text-red">Error: {error.message}</div>
       </div>
     )
   }
@@ -236,11 +232,14 @@ function ChangesView({
   }))
 
   // Create a set of all unstaged files to avoid duplicates
-  const unstagedFileMap = new Map<string, {
-    file: string
-    status: "modified" | "untracked" | "deleted"
-    isPartiallyStaged: boolean
-  }>()
+  const unstagedFileMap = new Map<
+    string,
+    {
+      file: string
+      status: "modified" | "untracked" | "deleted"
+      isPartiallyStaged: boolean
+    }
+  >()
 
   // Add modified files
   ;(status?.modified || []).forEach((f) => {
@@ -300,22 +299,20 @@ function ChangesView({
   return (
     <div className="flex-1 flex">
       <div
-        className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto overflow-x-hidden"
+        className="w-1/3 bg-mantle border-r border-surface-0 p-4 overflow-y-auto overflow-x-hidden"
         style={{ height: "calc(100vh - 120px)" }}
       >
         {stagedFiles.length === 0 && unstagedFiles.length === 0 ? (
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            No changes detected
-          </div>
+          <div className="text-sm text-subtext-0">No changes detected</div>
         ) : (
           <div className="space-y-6">
             {/* Staged Files Section */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              <h3 className="text-sm font-semibold text-text mb-3">
                 Staged ({stagedFiles.length})
               </h3>
               {stagedFiles.length === 0 ? (
-                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                <div className="text-xs text-subtext-0 italic">
                   No staged files
                 </div>
               ) : (
@@ -323,9 +320,9 @@ function ChangesView({
                   {stagedFiles.map(({ file }) => (
                     <div
                       key={`staged-${file}`}
-                      className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
+                      className={`flex items-center justify-between p-2 rounded hocus:bg-surface-0 cursor-pointer ${
                         selectedFile?.file === file && selectedFile?.staged
-                          ? "bg-blue-50 dark:bg-blue-900/30"
+                          ? "bg-surface-1"
                           : ""
                       }`}
                       onClick={() => {
@@ -341,7 +338,9 @@ function ChangesView({
                       }}
                       role="button"
                       tabIndex={0}
-                      onContextMenu={async (e: React.MouseEvent<HTMLDivElement>) => {
+                      onContextMenu={async (
+                        e: React.MouseEvent<HTMLDivElement>,
+                      ) => {
                         e.preventDefault()
 
                         const action = await window.electronAPI.showContextMenu(
@@ -368,8 +367,8 @@ function ChangesView({
                       }}
                     >
                       <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                        <span className="w-2 h-2 rounded-full bg-green" />
+                        <span className="text-sm font-mono text-text">
                           {file}
                         </span>
                       </div>
@@ -379,7 +378,7 @@ function ChangesView({
                           e.stopPropagation()
                           handleUnstageFile(file)
                         }}
-                        className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-900 dark:text-gray-100"
+                        className="text-xs px-2 py-1 rounded bg-surface-0 hocus:bg-surface-1 text-text"
                         disabled={
                           stageFileMutation.isPending ||
                           unstageFileMutation.isPending
@@ -395,11 +394,11 @@ function ChangesView({
 
             {/* Unstaged Files Section */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              <h3 className="text-sm font-semibold text-text mb-3">
                 Unstaged ({unstagedFiles.length})
               </h3>
               {unstagedFiles.length === 0 ? (
-                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                <div className="text-xs text-subtext-0 italic">
                   No unstaged files
                 </div>
               ) : (
@@ -407,9 +406,9 @@ function ChangesView({
                   {unstagedFiles.map(({ file, status, isPartiallyStaged }) => (
                     <div
                       key={`unstaged-${file}`}
-                      className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
+                      className={`flex items-center justify-between p-2 rounded hocus:bg-surface-0 cursor-pointer ${
                         selectedFile?.file === file && !selectedFile?.staged
-                          ? "bg-blue-50 dark:bg-blue-900/30"
+                          ? "bg-surface-1"
                           : ""
                       }`}
                       onClick={() => {
@@ -425,7 +424,9 @@ function ChangesView({
                       }}
                       role="button"
                       tabIndex={0}
-                      onContextMenu={async (e: React.MouseEvent<HTMLDivElement>) => {
+                      onContextMenu={async (
+                        e: React.MouseEvent<HTMLDivElement>,
+                      ) => {
                         e.preventDefault()
 
                         const menuItems = [
@@ -473,17 +474,17 @@ function ChangesView({
                         <span
                           className={`w-2 h-2 rounded-full ${
                             status === "modified"
-                              ? "bg-yellow-500"
+                              ? "bg-yellow"
                               : status === "untracked"
-                                ? "bg-blue-500"
-                                : "bg-red-500"
+                                ? "bg-blue"
+                                : "bg-red"
                           }`}
                         />
-                        <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                        <span className="text-sm font-mono text-text">
                           {file}
                         </span>
                         {isPartiallyStaged && (
-                          <span className="text-xs px-1 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                          <span className="text-xs px-1 py-0.5 bg-green/20 text-green rounded">
                             partial
                           </span>
                         )}
@@ -494,7 +495,7 @@ function ChangesView({
                           e.stopPropagation()
                           handleStageFile(file)
                         }}
-                        className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-900 dark:text-gray-100"
+                        className="text-xs px-2 py-1 rounded bg-surface-0 hocus:bg-surface-1 text-text"
                         disabled={
                           stageFileMutation.isPending ||
                           unstageFileMutation.isPending
@@ -511,7 +512,7 @@ function ChangesView({
         )}
 
         {/* Claude Code Button - Sticky at bottom */}
-        <div className="sticky bottom-0 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="sticky bottom-0 mt-4 pt-4 border-t border-surface-0 bg-mantle">
           <button
             type="button"
             onClick={() => {
@@ -524,8 +525,8 @@ function ChangesView({
             }}
             className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors ${
               selectedView === "chat"
-                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
-                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                ? "bg-blue/20 text-blue border border-blue/50"
+                : "bg-surface-0 text-subtext-1 hocus:bg-surface-1"
             }`}
           >
             🤖 Claude Code
@@ -533,7 +534,7 @@ function ChangesView({
         </div>
       </div>
       <div
-        className="flex-1 bg-gray-50 dark:bg-gray-900 p-4 overflow-y-auto overflow-x-hidden"
+        className="flex-1 bg-base p-4 overflow-y-auto overflow-x-hidden"
         style={{ height: "calc(100vh - 120px)" }}
       >
         {selectedView === "chat" ? (
@@ -544,11 +545,11 @@ function ChangesView({
         ) : selectedFile ? (
           <div>
             {diffLoading ? (
-              <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+              <div className="text-center text-subtext-0 mt-8">
                 Loading diff...
               </div>
             ) : diffError ? (
-              <div className="text-center text-red-500 dark:text-red-400 mt-8">
+              <div className="text-center text-red mt-8">
                 Error loading diff: {diffError.message}
               </div>
             ) : diffData ? (
@@ -556,16 +557,16 @@ function ChangesView({
                 diffText={diffData}
                 fileName={selectedFile.file}
                 staged={selectedFile.staged}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow"
+                className="bg-surface-0 rounded-lg shadow"
               />
             ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+              <div className="text-center text-subtext-0 mt-8">
                 No diff data available
               </div>
             )}
           </div>
         ) : (
-          <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+          <div className="text-center text-subtext-0 mt-8">
             Select a file to view changes or use Claude Code
           </div>
         )}
@@ -579,32 +580,24 @@ function HistoryView({ repository }: { repository: Repository }) {
 
   return (
     <div className="flex-1 flex">
-      <div className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          Branch Info
-        </h3>
+      <div className="w-1/3 bg-mantle border-r border-surface-0 p-4">
+        <h3 className="text-sm font-semibold text-text mb-3">Branch Info</h3>
         {branches && (
           <div className="space-y-2">
             <div className="text-sm">
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                Current:{" "}
-              </span>
-              <span className="font-mono text-blue-600 dark:text-blue-400">
-                {branches.current}
-              </span>
+              <span className="font-medium text-text">Current: </span>
+              <span className="font-mono text-blue">{branches.current}</span>
             </div>
             <div className="text-sm">
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                All branches:{" "}
-              </span>
+              <span className="font-medium text-text">All branches: </span>
               <div className="mt-1 space-y-1">
                 {branches.all.map((branch) => (
                   <div
                     key={branch}
                     className={`font-mono text-xs px-2 py-1 rounded ${
                       branch === branches.current
-                        ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        ? "bg-blue/20 text-blue"
+                        : "bg-surface-0 text-text"
                     }`}
                   >
                     {branch}
@@ -615,8 +608,8 @@ function HistoryView({ repository }: { repository: Repository }) {
           </div>
         )}
       </div>
-      <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
-        <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+      <div className="flex-1 bg-base p-4">
+        <div className="text-center text-subtext-0 mt-8">
           Commit history view coming soon
         </div>
       </div>

@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { simpleGit, SimpleGit } from "simple-git"
+import { type SimpleGit, simpleGit } from "simple-git"
 
 class GitService {
   private git: SimpleGit | null = null

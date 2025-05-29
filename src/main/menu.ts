@@ -1,4 +1,9 @@
-import { BrowserWindow, Menu, app, MenuItemConstructorOptions } from "electron"
+import {
+  BrowserWindow,
+  Menu,
+  type MenuItemConstructorOptions,
+  app,
+} from "electron"
 import { createNewTab } from "../main/window"
 
 // Set up application menu

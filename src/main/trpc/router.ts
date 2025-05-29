@@ -1,6 +1,6 @@
 import { initTRPC } from "@trpc/server"
-import { z } from "zod"
 import { BrowserWindow } from "electron"
+import { z } from "zod"
 import { ClaudeCode } from "../../main/services/claude-code"
 import { gitService } from "../../main/services/git-service"
 
@@ -126,24 +126,27 @@ const appRouter = router({
         })
 
         // Start the chat asynchronously - don't await
-        claudeCode.chat(input.message, currentSessionId).then((response) => {
-          if (response.success && response.sessionId) {
-            currentSessionId = response.sessionId
-          }
-        }).catch((error) => {
-          console.error("Claude Code chat error:", error)
-          // Send error message via IPC
-          if (BrowserWindow.getAllWindows().length > 0) {
-            BrowserWindow.getAllWindows()[0].webContents.send(
-              "claude-code-message",
-              {
-                type: "error",
-                content: error.message || "Unknown error occurred",
-                timestamp: new Date().toISOString(),
-              },
-            )
-          }
-        })
+        claudeCode
+          .chat(input.message, currentSessionId)
+          .then((response) => {
+            if (response.success && response.sessionId) {
+              currentSessionId = response.sessionId
+            }
+          })
+          .catch((error) => {
+            console.error("Claude Code chat error:", error)
+            // Send error message via IPC
+            if (BrowserWindow.getAllWindows().length > 0) {
+              BrowserWindow.getAllWindows()[0].webContents.send(
+                "claude-code-message",
+                {
+                  type: "error",
+                  content: error.message || "Unknown error occurred",
+                  timestamp: new Date().toISOString(),
+                },
+              )
+            }
+          })
 
         // Return immediately with a pending status
         return {
